@@ -146,9 +146,16 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
                                 if approxNumber < np.shape(np.transpose(np.where(miniImg > thresh)))[0] - 1:
                                     clusterer = KMeans(n_clusters=approxNumber, random_state=10).fit(np.transpose(np.where(miniImg > thresh)))
                                     cluster_centers = clusterer.cluster_centers_
-                                else:
-                                    objectLocations = objectLocations + [[cX, cY]]
 
+                                    cluster_list = np.copy(cluster_centers)
+                                    cluster_list[:,0] = cluster_centers[:,1] + x
+                                    cluster_list[:,1] = cluster_centers[:,0] + y
+
+                                    new_objects =  cluster_list.tolist()
+                                else:
+                                    new_objects = [[cX, cY]]
+
+                                objectLocations = objectLocations + new_objects
                                 if test2 == 'O':
                                     plt.subplot(1, 2, 1)
                                     plt.imshow(full)
@@ -160,17 +167,10 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
                                     plt.ylim(ymin=y+h-1, ymax=y)
                                     plt.xlim(xmin=x, xmax=x+w-1)
                                     plt.colorbar()
-                                    plt.scatter(cluster_centers[:,1] + x, cluster_centers[:,0] + y, color = 'red')
+                                    plt.scatter(np.array(new_objects)[:,0], np.array(new_objects)[:,1], color = 'red')
                                     plt.scatter(cX, cY, color = 'k')
                                     plt.pause(3)
                                     plt.clf()
-
-
-                                cluster_list = np.copy(cluster_centers)
-                                cluster_list[:,0] = cluster_centers[:,1] + x
-                                cluster_list[:,1] = cluster_centers[:,0] + y
-
-                                objectLocations = objectLocations + cluster_list.tolist()
 
 
 
@@ -199,5 +199,5 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
     plt.clf()
     return [np.array(sheepLocations), r, pix]
 
-locations, radii, pixels = track('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4', plot = 'Y', test = True, darkTolerance = 173.5, sizeOfObject = 60, radi = 5., upperBoundX = 2000, lowerBoundY = 500, lowerBoundX = 100)
+locations, radii, pixels = track('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4', plot = 'Y', test = False, darkTolerance = 173.5, sizeOfObject = 60, radi = 5., upperBoundX = 2000, lowerBoundY = 500, lowerBoundX = 100)
 np.save('locfull.npy',locations)
