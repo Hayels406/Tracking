@@ -15,6 +15,8 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
     test_ymin = 1400
     test_ymax = 1200
 
+    test2 = 'O'
+
 
     sheepLocations = []
     frameID = 0
@@ -34,6 +36,7 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
 
             full = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
             if test == True:
+                plt.clf()
                 plt.imshow(full)
                 plt.xlim(xmin = test_xmin, xmax = test_xmax)
                 plt.ylim(ymax = test_ymax, ymin = test_ymin)
@@ -117,35 +120,58 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
                             #objectLocations = objectLocations + [[cX, cY]]
                             if numPixels < 250:
                                 objectLocations = objectLocations + [[cX, cY]]
-                            elif numPixels < 450:
+                            else:
+                                approxNumber = np.ceil((numPixels - 50.)/200.)
+                                clusters = np.array([approxNumber - 2, approxNumber - 1, approxNumber, approxNumber + 1, approxNumber + 2])
                                 av_score = []
-                                thresh = 210
+                                thresh = 205
                                 x,y,w,h = cv2.boundingRect(cnts)
+
                                 maxfilter = ndimage.maximum_filter(img, size=2)
                                 maxfilter[maxfilter < thresh] = 0
 
                                 miniImg = maxfilter[y: y + h, x: x + w]
-                                for n_clusters in np.array([2,3,4]):
+                                for n_clusters in np.array(clusters[clusters > 1]):
+                                    n_clusters = int(n_clusters)
+                                    if np.shape(np.transpose(np.where(miniImg > thresh)))[0] - 1 < n_clusters:
+                                        av_score += [0]
+                                        continue
                                     clusterer = KMeans(n_clusters=n_clusters, random_state=10)
 
                                     cluster_labels = clusterer.fit_predict(np.transpose(np.where(miniImg > thresh)))
 
                                     av_score += [silhouette_score(np.transpose(np.where(miniImg > thresh)), cluster_labels)]
-                                print np.where(av_score == np.max(av_score))[0][0] + 2
-                                plt.imshow(maxfilter)
-                                plt.colorbar()
-                                plt.ylim(ymin=y+h-1, ymax=y)
-                                plt.xlim(xmin=x, xmax=x+w-1)
-                                plt.show()
-                                plt.clf()
-                                objectLocations = objectLocations + [[cX-1, cY-1],[cX+1,cY+1]]
-                            elif numPixels < 650:
-                                objectLocations = objectLocations + [[cX-1, cY-1],[cX+1,cY+1],[cX-1, cY+1]]
-                            else:
-                                approxNumber = np.ceil((numPixels - 50.)/200.)
-                                print 'shifts', approxNumber
-                                shifts = np.linspace(-1,1,approxNumber)
-                                objectLocations = objectLocations + np.transpose(np.array([cX - shifts, cY + shifts])).tolist()
+
+                                approxNumber =  np.where(av_score == np.max(av_score))[0][0] + 2
+                                if approxNumber < np.shape(np.transpose(np.where(miniImg > thresh)))[0] - 1:
+                                    clusterer = KMeans(n_clusters=approxNumber, random_state=10).fit(np.transpose(np.where(miniImg > thresh)))
+                                    cluster_centers = clusterer.cluster_centers_
+                                else:
+                                    objectLocations = objectLocations + [[cX, cY]]
+
+                                if test2 == 'O':
+                                    plt.subplot(1, 2, 1)
+                                    plt.imshow(full)
+                                    plt.ylim(ymin=y+h-1, ymax=y)
+                                    plt.xlim(xmin=x, xmax=x+w-1)
+
+                                    plt.subplot(1,2,2)
+                                    plt.imshow(img)
+                                    plt.ylim(ymin=y+h-1, ymax=y)
+                                    plt.xlim(xmin=x, xmax=x+w-1)
+                                    plt.colorbar()
+                                    plt.scatter(cluster_centers[:,1] + x, cluster_centers[:,0] + y, color = 'red')
+                                    plt.scatter(cX, cY, color = 'k')
+                                    plt.pause(3)
+                                    plt.clf()
+
+
+                                cluster_list = np.copy(cluster_centers)
+                                cluster_list[:,0] = cluster_centers[:,1] + x
+                                cluster_list[:,1] = cluster_centers[:,0] + y
+
+                                objectLocations = objectLocations + cluster_list.tolist()
+
 
 
             sheepLocations = sheepLocations + [objectLocations]
@@ -173,5 +199,5 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
     plt.clf()
     return [np.array(sheepLocations), r, pix]
 
-locations, radii, pixels = track('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4', plot = 'Y', test = False, darkTolerance = 173.5, sizeOfObject = 60, radi = 5., upperBoundX = 2000, lowerBoundY = 500, lowerBoundX = 100)
+locations, radii, pixels = track('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4', plot = 'Y', test = True, darkTolerance = 173.5, sizeOfObject = 60, radi = 5., upperBoundX = 2000, lowerBoundY = 500, lowerBoundX = 100)
 np.save('locfull.npy',locations)
