@@ -7,7 +7,6 @@ import imutils as im
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
-from skimage.feature import peak_local_max
 
 def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, lowerBoundY = 0, upperBoundY = 2500, lowerBoundX = 0, upperBoundX = 3000):
     test_xmin = 600
