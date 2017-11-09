@@ -7,7 +7,7 @@ import imutils as im
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
-
+from skimage.feature import peak_local_max
 
 def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, lowerBoundY = 0, upperBoundY = 2500, lowerBoundX = 0, upperBoundX = 3000):
     test_xmin = 600
@@ -32,8 +32,6 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
         ret, frame = cap.read()
         if ret == True:
 
-
-
             full = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
             if test == True:
                 plt.clf()
@@ -54,7 +52,7 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
                 id += 1
                 plt.savefig('./test'+str(id)+'.png')
 
-            img = ndimage.gaussian_filter(grey, sigma = (2), order = 0)
+            img = cv2.GaussianBlur(grey,(5,5),2)
             if test == True:
                 plt.imshow(img)
                 plt.xlim(xmin = test_xmin, xmax = test_xmax)
@@ -70,7 +68,7 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
                 id += 1
                 plt.savefig('./test'+str(id)+'.png')
 
-            filtered = maxfilter
+            filtered = np.copy(maxfilter)
             filtered[filtered < 65.] = 0.0 #for removing extra shiney grass
             filtered[filtered > 0.] = 255.
             if test == True:
@@ -115,22 +113,18 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
 
                     if radius > radi:
                         if radius < 200:
-                            pix = pix + [numPixels]
-                            r = r + [radius]
-                            #objectLocations = objectLocations + [[cX, cY]]
                             if numPixels < 250:
                                 objectLocations = objectLocations + [[cX, cY]]
                             else:
                                 approxNumber = np.ceil((numPixels - 50.)/200.)
                                 clusters = np.array([approxNumber - 2, approxNumber - 1, approxNumber, approxNumber + 1, approxNumber + 2])
                                 av_score = []
-                                thresh = 205
                                 x,y,w,h = cv2.boundingRect(cnts)
 
-                                maxfilter = ndimage.maximum_filter(img, size=2)
+                                miniImg = img[y: y + h, x: x + w]
+                                thresh = 0.9*np.max(miniImg)
                                 maxfilter[maxfilter < thresh] = 0
 
-                                miniImg = maxfilter[y: y + h, x: x + w]
                                 for n_clusters in np.array(clusters[clusters > 1]):
                                     n_clusters = int(n_clusters)
                                     if np.shape(np.transpose(np.where(miniImg > thresh)))[0] - 1 < n_clusters:
@@ -197,7 +191,7 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, test = False, 
 
     cap.release()
     plt.clf()
-    return [np.array(sheepLocations), r, pix]
+    return np.array(sheepLocations)
 
-locations, radii, pixels = track('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4', plot = 'Y', test = False, darkTolerance = 173.5, sizeOfObject = 60, radi = 5., upperBoundX = 2000, lowerBoundY = 500, lowerBoundX = 100)
+locations = track('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4', plot = 'Y', test = False, darkTolerance = 173.5, sizeOfObject = 60, radi = 5., upperBoundX = 2000, lowerBoundY = 600, lowerBoundX = 100)
 np.save('locfull.npy',locations)
