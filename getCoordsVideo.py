@@ -7,6 +7,8 @@ import imutils as im
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
+from scipy.spatial.distance import cdist
+from scipy.optimize import linear_sum_assignment
 
 def alpha(theta, m, atan):
     xr = int(round(m*np.sin(theta)))
@@ -71,8 +73,12 @@ def iris(miniImg, X, Y):
     return final_objects
 
 def kmeansClustering(miniImg, numberPixels, X, Y, previous):
-    threshold= 0.8*np.max(miniImg)
-
+    threshold= 0.85*np.max(miniImg)
+    if previous == 0:
+        plt.imshow(miniImg)
+        plt.axes().set_aspect('auto')
+        plt.title('KMeans error')
+        plt.show()
     if previous <  0:
         approxNumber = np.ceil((numberPixels - 50.)/200.)
         clusters = np.array([approxNumber - 2, approxNumber - 1, approxNumber, approxNumber + 1, approxNumber + 2])
@@ -103,7 +109,11 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
             new_objects = [[cX, cY]]
 
     else:
-        clusterer = KMeans(n_clusters=previous, random_state=10).fit(np.transpose(np.where(miniImg > threshold)))
+        #plt.imshow(np.transpose(np.where(miniImg > threshold)))
+        #plt.axes().set_aspect('auto')
+        #plt.show()
+        clusterer = KMeans(n_clusters=previous, random_state=10)
+        clusterer = clusterer.fit(np.transpose(np.where(miniImg > threshold)))
         cluster_centers = clusterer.cluster_centers_
         cluster_list = np.copy(cluster_centers)
         cluster_list[:,0] = cluster_centers[:,1] + X
@@ -116,9 +126,6 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
 
 def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clustering', test = False, lowerBoundY = 0, upperBoundY = 2500, lowerBoundX = 0, upperBoundX = 3000):
 
-    test2 = 'O'
-
-
     sheepLocations = []
     frameID = 0
 
@@ -129,15 +136,21 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
         ret, frame = cap.read()
         print frameID
         frameID +=1
-    while(frameID <= 6):
+    while(frameID <= 10):
+        plt.close('all')
         ret, frame = cap.read()
         if ret == True:
 
             full = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-            if frameID == 0:
+            if frameID < 2:
                 cropX = 1000
                 cropY = 1000
-            fullCropped = full[cropY:2000, cropX:2000, :]
+                cropXMax = 2000
+                cropYMax = 2000
+            else:
+                print 'move window'
+
+            fullCropped = np.copy(full)[cropY:cropYMax, cropX:cropXMax, :]
 
             if test == True:
                 plt.clf()
@@ -186,6 +199,7 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
             # loop over the unique components
 
             for label in np.unique(labels):
+                check = 'On'
                 # if this is the background label, ignore it
                 if label == 0:
                     continue
@@ -213,37 +227,55 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                 miniImage = img[y: y + h, x: x + w]
                                 if frameID > 0:
                                     lastT = np.array(sheepLocations[-1])
-                                    prev =  len(np.where((lastT[:,0] > x+cropX) & (lastT[:,0] < x+w+cropX) & (lastT[:,1] < y+h+cropY) & (lastT[:,1] > y+cropY))[0])
+                                    leeway = 3
+                                    prev =  len(np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0])
                                 else:
                                     prev = -1
-
-
-                                if test2 == 'O':
-                                    plt.close()
-                                    plt.subplot(2, 2, 1)
-                                    plt.imshow(fullCropped)
-                                    plt.scatter(cX, cY, color = 'k')
-
-                                    plt.subplot(2, 2, 2)
-                                    plt.imshow(fullCropped)
-                                    plt.ylim(ymin=y+h-1, ymax=y)
-                                    plt.xlim(xmin=x, xmax=x+w-1)
+                                    leeway = 0
 
                                 new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = prev)
                                 new_objects = iris(miniImage, x, y)
 
-                                if frameID == 0:
-                                    test2 = 'O'
-                                elif frameID == 1:
-                                    test2 = 'O'
-                                if test2 == 'O':
-                                    plt.subplot(2, 2, 3)
-                                    plt.imshow(img)
+                                num_new_objects_i = np.shape(new_objects)[0]
+                                num_new_objects_k = np.shape(new_objects_K)[0]
+                                if num_new_objects_i == 1:
+                                    check = 'Off'
+                                    objectLocations += new_objects_K
+                                elif num_new_objects_k == 1:
+                                    check = 'Off'
+                                    objectLocations += new_objects
+                                elif num_new_objects_i == num_new_objects_k:
+                                    C = cdist(new_objects, new_objects_K)
+                                    _, assigment = linear_sum_assignment(C)
+                                    sum_C = 0
+                                    for i in range(num_new_objects_i):
+                                        sum_C += C[i,  assigment[i]]
+                                    if sum_C/num_new_objects_i < 3.5:
+                                        check = 'Off'
+                                        objectLocations = objectLocations + new_objects_K
+                                elif (frameID > 0) & (num_new_objects_i != prev):
+                                    check = 'Off'
+                                    objectLocations += new_objects_K
+                                if frameID == 5:
+                                    check = 'On'
+                                if check == 'On':
+                                    plt.close()
+                                    plt.figure(dpi = 300)
+                                    plt.subplot(2, 2, 2)
+                                    plt.imshow(fullCropped)
+                                    plt.scatter(cX, cY, color = 'k')
+
+                                    plt.subplot(2, 2, 1)
+                                    plt.imshow(fullCropped)
                                     plt.ylim(ymin=y+h-1, ymax=y)
                                     plt.xlim(xmin=x, xmax=x+w-1)
-                                    plt.scatter(cX+cropX, cY+cropY, color = 'k', label = 'centre')
+                                    plt.subplot(2, 2, 3)
+                                    plt.imshow(img)
+                                    plt.ylim(ymin=y+h-1+leeway, ymax=y-leeway)
+                                    plt.xlim(xmin=x-leeway, xmax=x+w-1+leeway)
+                                    plt.scatter(cX, cY, color = 'k', label = 'centre')
                                     plt.scatter(np.array(new_objects_K)[:,0], np.array(new_objects_K)[:,1], color = 'green', marker = '^', label = 'kmeans')
-                                    if np.shape(new_objects)[0] > 0:
+                                    if num_new_objects_i > 0:
                                         plt.scatter(np.array(new_objects)[:,0], np.array(new_objects)[:,1], color = 'red', label = 'iris', alpha = 0.5)
                                     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
                                     plt.pause(0.5)
@@ -259,6 +291,12 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                         objectLocations = objectLocations + new_objects
                                     elif text == '0':
                                         objectLocations = objectLocations
+                                    elif text == 'd':
+                                        print 'kmeans: ',  new_objects_K
+                                        print 'iris: ',  new_objects
+                                        print 'previous: ',  prev
+                                        print 'dist: ',  sum_C/num_new_objects_i
+                                        objectLocations = objectLocations + new_objects_K
                                     else:
                                         print 'you gave an awful answer: used kmeans'
                                         objectLocations = objectLocations + new_objects_K
@@ -268,38 +306,42 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
 
 
             print 'frameID: ', frameID, ', No. objects located: ', len(objectLocations)
-            frameID += 1
+
             objectLocations = np.array(objectLocations)
             objectLocations[:, 0] += cropX
             objectLocations[:, 1] += cropY
             if plot != 'N':
-                plt.cla()
+                plt.close()
                 if test == True:
                     fig = plt.figure(frameon=False)
                     fig.set_size_inches(5,5) #Set image to 1 inch by 1 inch, then control the resolution through tweaking "dots per inch"
                     ax = plt.Axes(fig, [0., 0., 1., 1.])
                     ax.set_axis_off()
+                    ax.set_aspect('equal')
                     fig.add_axes(ax)
-                    ax.imshow(fullCropped, aspect='normal')
+                    ax.imshow(fullCropped)
                     ax.scatter(np.array(objectLocations)[:, 0] - cropX, np.array(objectLocations)[:, 1] - cropY, s = 1.)
                     id += 1
                     fig.savefig('originalColour'+str(frameID-1)+'.png', dpi = 200)
                 else:
-                    plt.imshow(full[:,:,2])
-                    plt.scatter(np.array(objectLocations)[:, 0], np.array(objectLocations)[:, 1], s = 6.)
+                    plt.imshow(fullCropped)
+                    plt.scatter(np.array(objectLocations)[:, 0] - cropX, np.array(objectLocations)[:, 1] - cropY, s = 1.)
                     plt.axis('off')
-                #plt.axis('equal')
                     if plot == 's':
-                        plt.savefig('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'+str(frameID).zfill(4), bbox_inches='tight')
+                        plt.savefig('/home/b1033128/Documents/throughFenceRL/'+str(frameID).zfill(4), bbox_inches='tight')
                     else:
                         plt.pause(15)
 
 
             objectLocations = objectLocations.tolist()
             sheepLocations = sheepLocations + [objectLocations]
+            if len(objectLocations) < 141:
+                print 'you lost a sheep'
+                break
+            frameID += 1
     cap.release()
     plt.clf()
     return np.array(sheepLocations)
 
-locations = track('/Users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4', plot = 's', test = True, darkTolerance = 173.5, sizeOfObject = 60, radi = 5.)
+locations = track('/home/b1033128/Documents/throughFenceRL.mp4', plot = 's', test = False, darkTolerance = 173.5, sizeOfObject = 60, radi = 5.)
 np.save('locfull.npy',locations)
