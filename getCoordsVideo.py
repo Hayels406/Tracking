@@ -132,10 +132,12 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
     cap = cv2.VideoCapture(videoLocation)
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print length
+
     while(frameID < 0):
         ret, frame = cap.read()
         print frameID
         frameID +=1
+
     while(frameID <= 10):
         plt.close('all')
         ret, frame = cap.read()
@@ -149,6 +151,16 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                 cropYMax = 2000
             else:
                 print 'move window'
+                moveX, moveY = np.min(sheepLocations[frameID-2], axis = 0) - np.min(sheepLocations[frameID-1], axis = 0)
+                cropX = int(np.floor(cropX + moveX))
+                cropY = int(np.floor(cropY + moveY))
+                moveX, moveY = np.max(sheepLocations[frameID-2], axis = 0) - np.max(sheepLocations[frameID-1], axis = 0)
+                cropXMax = int(np.floor(cropXMax + moveX))
+                cropYMax = int(np.floor(cropYMax + moveY))
+
+                print 'move window', moveX, moveY
+
+
 
             fullCropped = np.copy(full)[cropY:cropYMax, cropX:cropXMax, :]
 
@@ -256,11 +268,10 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                 elif (frameID > 0) & (num_new_objects_i != prev):
                                     check = 'Off'
                                     objectLocations += new_objects_K
-                                if frameID == 5:
-                                    check = 'On'
+
                                 if check == 'On':
                                     plt.close()
-                                    plt.figure(dpi = 300)
+                                    plt.figure(dpi = 100)
                                     plt.subplot(2, 2, 2)
                                     plt.imshow(fullCropped)
                                     plt.scatter(cX, cY, color = 'k')
@@ -324,9 +335,14 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                     id += 1
                     fig.savefig('originalColour'+str(frameID-1)+'.png', dpi = 200)
                 else:
-                    plt.imshow(fullCropped)
-                    plt.scatter(np.array(objectLocations)[:, 0] - cropX, np.array(objectLocations)[:, 1] - cropY, s = 1.)
-                    plt.axis('off')
+                    fig = plt.figure(frameon=False)
+                    fig.set_size_inches(5,5)
+                    ax = plt.Axes(fig, [0., 0., 1., 1.])
+                    ax.set_axis_off()
+                    ax.set_aspect('equal')
+                    fig.add_axes(ax)
+                    ax.imshow(fullCropped)
+                    ax.scatter(np.array(objectLocations)[:, 0] - cropX, np.array(objectLocations)[:, 1] - cropY, s = 1.)
                     if plot == 's':
                         plt.savefig('/home/b1033128/Documents/throughFenceRL/'+str(frameID).zfill(4), bbox_inches='tight')
                     else:
