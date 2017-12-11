@@ -135,6 +135,7 @@ def predictEuler(locm1, locm2):
     prediction_Objects = locm1 + vel
     return prediction_Objects
 
+
 def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clustering', test = False, lowerBoundY = 0, upperBoundY = 2500, lowerBoundX = 0, upperBoundX = 3000):
 
     sheepLocations = []
@@ -173,50 +174,19 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
 
             fullCropped = np.copy(full)[cropY:cropYMax, cropX:cropXMax, :]
 
-            if test == True:
-                plt.clf()
-                plt.imshow(fullCropped)
-                plt.axis('off')
-                id = 1
-                plt.savefig('./test'+str(id)+'.png', bbox_inches='tight')
-
-            grey = fullCropped[:,:,2]#cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-
-            grey[grey < darkTolerance] = 0.0
-            grey[grey > darkTolerance+10.] = 255.
-            if test == True:
-                plt.imshow(grey)
-                plt.axis('off')
-                id += 1
-                plt.savefig('./test'+str(id)+'.png', bbox_inches='tight')
+            grey = fullCropped[:,:,2]
 
             img = cv2.GaussianBlur(grey,(5,5),2)
-            if test == True:
-                plt.imshow(img)
-                id += 1
-                plt.savefig('./test'+str(id)+'.png', bbox_inches='tight')
 
             maxfilter = ndimage.maximum_filter(img, size=2)
-            if test == True:
-                plt.imshow(maxfilter)
-                plt.axis('off')
-                id += 1
-                plt.savefig('./test'+str(id)+'.png', bbox_inches='tight')
 
             filtered = np.copy(maxfilter)
-            filtered[filtered < 65.] = 0.0 #for removing extra shiney grass
+            filtered[filtered < 65.] = 0.0
             filtered[filtered > 0.] = 255.
-            if test == True:
-                plt.imshow(filtered)
-                plt.axis('off')
-                id += 1
-                plt.savefig('./test'+str(id)+'.png', bbox_inches='tight')
 
             labels = measure.label(filtered, neighbors=8, background=0)
 
             objectLocations = []
-            r = []
-            pix = []
             # loop over the unique components
 
             for label in np.unique(labels):
