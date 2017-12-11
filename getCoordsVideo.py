@@ -124,6 +124,17 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
 
     return new_objects
 
+def findVel(locm1, locm2):
+	C = cdist(locm1, locm2)
+	_, assignment = linear_sum_assignment(C)
+	vel = (locm1 - locm2[assignment])/5
+	return vel
+
+def predictEuler(locm1, locm2):
+    vel = findVel(locm1, locm2)
+    prediction_Objects = locm1 + vel
+    return prediction_Objects
+
 def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clustering', test = False, lowerBoundY = 0, upperBoundY = 2500, lowerBoundX = 0, upperBoundX = 3000):
 
     sheepLocations = []
@@ -138,7 +149,7 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
         print frameID
         frameID +=1
 
-    while(frameID <= 10):
+    while(frameID <= 20):
         plt.close('all')
         ret, frame = cap.read()
         if ret == True:
@@ -150,7 +161,6 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                 cropXMax = 2000
                 cropYMax = 2000
             else:
-                print 'move window'
                 moveX, moveY = np.min(sheepLocations[frameID-2], axis = 0) - np.min(sheepLocations[frameID-1], axis = 0)
                 cropX = int(np.floor(cropX + moveX))
                 cropY = int(np.floor(cropY + moveY))
@@ -158,7 +168,6 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                 cropXMax = int(np.floor(cropXMax + moveX))
                 cropYMax = int(np.floor(cropYMax + moveY))
 
-                print 'move window', moveX, moveY
 
 
 
@@ -228,7 +237,9 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                 if numPixels > sizeOfObject:
                     cnts = cv2.findContours(labelMask, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
                     ((cX, cY), radius) = cv2.minEnclosingCircle(cnts)
-
+                    if frameID > 6:
+                        prediction_Objects = predictEuler(np.array(sheepLocations[-1]), np.array(sheepLocations[-6]))
+                        
                     if radius > radi:
                         if radius < 200:
                             if numPixels < 250:
@@ -239,14 +250,18 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                 miniImage = img[y: y + h, x: x + w]
                                 if frameID > 0:
                                     lastT = np.array(sheepLocations[-1])
-                                    leeway = 3
-                                    prev =  len(np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0])
+                                    leeway =  3
+                                    prevID = np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0]
+                                    prev =  len(prevID)
                                 else:
                                     prev = -1
                                     leeway = 0
 
                                 new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = prev)
                                 new_objects = iris(miniImage, x, y)
+                                if frameID > 100:
+                                    prediction_Objects[:,0] -= cropX
+                                    prediction_Objects[:,1] -= cropY
 
                                 num_new_objects_i = np.shape(new_objects)[0]
                                 num_new_objects_k = np.shape(new_objects_K)[0]
@@ -256,6 +271,7 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                 elif num_new_objects_k == 1:
                                     check = 'Off'
                                     objectLocations += new_objects
+                                    check = 'On'
                                 elif num_new_objects_i == num_new_objects_k:
                                     C = cdist(new_objects, new_objects_K)
                                     _, assigment = linear_sum_assignment(C)
@@ -265,13 +281,33 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                     if sum_C/num_new_objects_i < 3.5:
                                         check = 'Off'
                                         objectLocations = objectLocations + new_objects_K
+                                    else:
+                                        if frameID > 6:
+                                            C = cdist(new_objects, prediction_Objects)
+                                            _, assigment = linear_sum_assignment(C)
+                                            sum_C = 0
+                                            for i in range(num_new_objects_i):
+                                                sum_C += C[i,  assigment[i]]
+                                            if sum_C/num_new_objects_i < 3.5:
+                                                check = 'Off'
+                                                objectLocations = objectLocations + new_objects
+                                            else:
+                                                C = cdist(new_objects_K, prediction_Objects)
+                                                _, assigment = linear_sum_assignment(C)
+                                                sum_C = 0
+                                                for i in range(num_new_objects_i):
+                                                    sum_C += C[i,  assigment[i]]
+                                                if sum_C/num_new_objects_i < 3.5:
+                                                    check = 'Off'
+                                                    objectLocations = objectLocations + new_objects_K
+                                            check = 'On'
                                 elif (frameID > 0) & (num_new_objects_i != prev):
                                     check = 'Off'
                                     objectLocations += new_objects_K
 
                                 if check == 'On':
                                     plt.close()
-                                    plt.figure(dpi = 100)
+                                    plt.figure(dpi = 300)
                                     plt.subplot(2, 2, 2)
                                     plt.imshow(fullCropped)
                                     plt.scatter(cX, cY, color = 'k')
@@ -280,16 +316,39 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                     plt.imshow(fullCropped)
                                     plt.ylim(ymin=y+h-1, ymax=y)
                                     plt.xlim(xmin=x, xmax=x+w-1)
+
                                     plt.subplot(2, 2, 3)
                                     plt.imshow(img)
                                     plt.ylim(ymin=y+h-1+leeway, ymax=y-leeway)
                                     plt.xlim(xmin=x-leeway, xmax=x+w-1+leeway)
-                                    plt.scatter(cX, cY, color = 'k', label = 'centre')
+                                    if frameID > 6:
+                                        plt.scatter(lastT[prevID][:,0]-cropX, lastT[prevID][:,1]-cropY, color = 'k', alpha = 0.5, label = 'previous')
+                                        plt.scatter(prediction_Objects[prevID][:,0]-cropX, prediction_Objects[prevID][:,1]-cropY, color = 'b', marker = 's', label = 'prediction')
                                     plt.scatter(np.array(new_objects_K)[:,0], np.array(new_objects_K)[:,1], color = 'green', marker = '^', label = 'kmeans')
-                                    if num_new_objects_i > 0:
-                                        plt.scatter(np.array(new_objects)[:,0], np.array(new_objects)[:,1], color = 'red', label = 'iris', alpha = 0.5)
+                                    plt.scatter(np.array(new_objects)[:,0], np.array(new_objects)[:,1], color = 'red', label = 'iris', alpha = 0.5)
                                     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-                                    plt.pause(0.5)
+                                    
+#                                    if frameID > 6:
+#                                    	plt.subplot(2, 2, 4)
+#                                    	x_r = np.arange(x, w+1, 1)
+#                                    	y_r = np.arange(y, h+1, 1)
+#                                    	s_x = 5
+#                                    	s_y = 5
+#                                    	xx, yy = np.meshgrid(x_r,y_r)
+#                                    	z = xx*0
+#                                    	for point in prediction_Objects[prevID]:
+#                                    		m_x	= point[0]
+#                                    		m_y = point[1]
+#                                    		print m_x, m_y
+#	                                    	z += (1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))
+
+#                                    	plt.imshow(z)
+#                                    	plt.gca().inverse_yaxis()
+#                                    	plt.colorbar()
+
+                                    plt.pause(0.00001)
+
+
                                     if prev  < 0:
                                         text = raw_input("Choose method for this mini image: ")
                                     else:
@@ -313,10 +372,6 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
                                         objectLocations = objectLocations + new_objects_K
                                     plt.clf()
 
-
-
-
-            print 'frameID: ', frameID, ', No. objects located: ', len(objectLocations)
 
             objectLocations = np.array(objectLocations)
             objectLocations[:, 0] += cropX
@@ -350,10 +405,20 @@ def track(videoLocation, plot, darkTolerance, sizeOfObject, radi, method = 'clus
 
 
             objectLocations = objectLocations.tolist()
+            
+            C = cdist(objectLocations,  objectLocations)
+            wx, wy = np.where((C > 0)*(C < 1.))
+            if len(wx) == 2:
+            	print 'remove ghost sheep'
+            	objectLocations.pop(wx[0])
+            print 'frameID: ', frameID, ', No. objects located: ', len(objectLocations)
             sheepLocations = sheepLocations + [objectLocations]
             if len(objectLocations) < 141:
                 print 'you lost a sheep'
                 break
+            if frameID == 7:
+            	print prediction_Objects
+            	break
             frameID += 1
     cap.release()
     plt.clf()
