@@ -22,4 +22,4 @@ for j in range(141):
     plt.plot(sheep[:,j,0], sheep[:,j,1], color = colors[j])
 plt.gca().invert_yaxis()
 plt.axes().set_aspect('equal')
-plt.savefig('./traj/traj'+str(endTime-1)+'.png')
+plt.savefig('./traj/traj'+str(endTime)+'.png')
