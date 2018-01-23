@@ -121,37 +121,35 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
 
     return new_objects
 
-def findVel(locm1, locm6):
-	C = cdist(locm1, locm6)
-	_, assignment = linear_sum_assignment(C)
-	vel = (locm1 - locm6[assignment])/5
+def findVel(locs):
+	vel = (locs[-1] - locs[-6])/5
 	return vel
 
-def predictEuler(locm1, locm2):
-    vel = findVel(locm1, locm2)
-    prediction_Objects = locm1 + vel
+def predictEuler(locs):
+    vel = findVel(locs)
+    prediction_Objects = locs[-1] + vel
     return prediction_Objects
 
-def movingCrop(frameID, full, sheepLocations, cropVector):
+def movingCrop(frameID, full, sheepLoc, cropVector):
     cropX, cropY, cropXMax, cropYMax = cropVector
 
     if frameID < 2:
         cropX = 1000
         cropY = 1000
         cropXMax = 2000
-        cropYMax = 2000
+        cropYMax = 2028
     elif frameID < 50:
-        moveX, moveY = np.min(sheepLocations[-2], axis = 0) - np.min(sheepLocations[-1], axis = 0)
-        cropX = int(np.floor(cropX - moveX))
-        cropY = int(np.floor(cropY - moveY))
-        moveX, moveY = np.max(sheepLocations[-2], axis = 0) - np.max(sheepLocations[-1], axis = 0)
+        moveX, moveY = np.min(sheepLoc[-2], axis = 0) - np.min(sheepLoc[-1], axis = 0)
+        cropX = int(np.floor(cropX + moveX))
+        cropY = int(np.floor(cropY + moveY))
+        moveX, moveY = np.max(sheepLoc[-2], axis = 0) - np.max(sheepLoc[-1], axis = 0)
         cropXMax = int(np.floor(cropXMax - moveX))
-        cropYMax = 2000
+        cropYMax = 2028
     else:
-        moveX, moveY = np.min(sheepLocations[-2], axis = 0) - np.min(sheepLocations[-1], axis = 0)
+        moveX, moveY = np.min(sheepLoc[-2], axis = 0) - np.min(sheepLoc[-1], axis = 0)
         cropX = int(np.floor(cropX - moveX))
         cropY = int(np.floor(cropY - moveY))
-        moveX, moveY = np.max(sheepLocations[-2], axis = 0) - np.max(sheepLocations[-1], axis = 0)
+        moveX, moveY = np.max(sheepLoc[-2], axis = 0) - np.max(sheepLoc[-1], axis = 0)
         cropXMax = int(np.floor(cropXMax - moveX))
         cropYMax = int(np.floor(cropYMax - moveY))
     
@@ -159,13 +157,13 @@ def movingCrop(frameID, full, sheepLocations, cropVector):
     cropVector = [cropX, cropY, cropXMax, cropYMax]
     return (fullCropped, cropVector)
 
-def createBinaryImage(frameID, sizeOfObject, radiIN, sheepLocations, cropVector, maxfilter):
+def createBinaryImage(frameID, sizeOfObject, radiIN, sheepLoc, cropVector, maxF):
     cropX, cropY, cropXMax, cropYMax = cropVector
     if frameID <= 6:
         minPixels = sizeOfObject
         oneSheepPixels = 250
         radi = radiIN
-        filtered = np.copy(maxfilter)
+        filtered = np.copy(maxF)
         filtered[filtered < 65.] = 0.0 #for removing extra shiney grass
         filtered[filtered > 0.] = 255.
         prediction_Objects = []
@@ -173,7 +171,7 @@ def createBinaryImage(frameID, sizeOfObject, radiIN, sheepLocations, cropVector,
         minPixels = 0.75*sizeOfObject
         oneSheepPixels = 0.75*250
         radi = 0.5*radiIN
-        prediction_Objects = predictEuler(np.array(sheepLocations[-1]), np.array(sheepLocations[-6]))
+        prediction_Objects = predictEuler(np.array(sheepLoc))
         x_r =  np.arange(cropX,  cropXMax)
         y_r =  np.arange(cropY,  cropYMax)
         xx, yy =  np.meshgrid(x_r, y_r)
@@ -183,13 +181,13 @@ def createBinaryImage(frameID, sizeOfObject, radiIN, sheepLocations, cropVector,
             m_x = point[0]
             m_y = point[1]
             z += (1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))
-        if (frameID > 30)*(frameID < 40):
+        if (frameID > 15)*(frameID < 40):
             m_x = 150 + cropX
             m_y = cropYMax
             s_x,  s_y = [6, 6]
             z += (1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))
                 
-        filtered = z*np.copy(maxfilter)
+        filtered = z*np.copy(maxF)
         filtered = 255.*filtered/np.max(filtered)
         filtered[filtered < 5.] = 0
         filtered[filtered > 0.] = 255.

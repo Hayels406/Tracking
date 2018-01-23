@@ -20,10 +20,10 @@ from trackingFunctions import findVel
 
 if os.getcwd().rfind('b1033128') > 0:
     videoLocation = '/home/b1033128/Documents/throughFenceRL.mp4'
-    save = '/home/b1033128/Documents/throughFenceRL'
+    save = '/home/b1033128/Documents/throughFenceRL/'
 elif os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
-    save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL'
+    save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
 plot = 's'
 darkTolerance = 173.5
 sizeOfObject = 60
@@ -37,7 +37,7 @@ cropVector = [0,0,0,0]
 
 cap = cv2.VideoCapture(videoLocation)
 length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-print 'You have', length, 'frames'
+print 'You have', length, 'frames', videoLocation
 
 if restart > 0:
     sheepLocations, cropVector = np.load('loc'+str(restart)+'.npy')
@@ -78,7 +78,6 @@ while(frameID <= 60):
         labels = measure.label(filtered, neighbors=8, background=0)
 
         objectLocations = []
-
         # loop over the unique components
         for label in np.unique(labels):
             check = 'On'
@@ -108,7 +107,7 @@ while(frameID <= 60):
                         if frameID > 6:
                             lastT = np.array(sheepLocations[-1])
                             prevID = np.where((lastT[:,0] > x+cropX) & (lastT[:,0] < x+w+cropX) & (lastT[:,1] < y+h+cropY) & (lastT[:,1] > y+cropY))[0]
-                            vel = findVel(np.array(sheepLocations[-1]), np.array(sheepLocations[-6]))[prevID]
+                            vel = findVel(np.array(sheepLocations))[prevID]
                             velMean = np.mean(np.sqrt((vel**2).sum(axis = 1)))
                             leeway = 3*velMean
                             prevID = np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0]
@@ -219,13 +218,11 @@ while(frameID <= 60):
 
 
         objectLocations = np.array(objectLocations)
-        objectLocations[:, 0] += cropX
-        objectLocations[:, 1] += cropY
 
         if plot != 'N':
             plt.close()
             plt.imshow(fullCropped)
-            plt.scatter(objectLocations[:, 0] - cropX, objectLocations[:, 1] - cropY, s = 1.)
+            plt.scatter(objectLocations[:, 0], objectLocations[:, 1], s = 1.)
             plt.gca().set_aspect('equal')
             plt.gca().set_axis_off()
             if plot == 's':
@@ -233,43 +230,57 @@ while(frameID <= 60):
             else:
                 plt.pause(15)
 
+
+        objectLocations[:, 0] += cropX
+        objectLocations[:, 1] += cropY
         objectLocations = objectLocations.tolist()
 
-        if frameID < 32:
+        if frameID < 16:
             N = 141
-        elif frameID == 32:
+        elif frameID == 16:
+            print len(objectLocations), 'here: len(obj)'
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
-                sheepLocations[i] += [saveLocation]
+                sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
-        elif frameID == 34:
+        elif frameID == 21:
+            print len(objectLocations), 'here2: len(obj)'
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
-                sheepLocations[i] += [saveLocation]
+                sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
-        elif frameID == 39:
+        elif frameID == 25:
+            print len(objectLocations), 'here3: len(obj)'
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
-                sheepLocations[i] += [saveLocation]
+                sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
 
         l = len(objectLocations)
+        print 'l=', l
         while (l > N) & (frameID > 0):
             C = cdist(sheepLocations[-1],  objectLocations)
             r = set(range(N))
+            print 'len(shepLoc[-1]), N ', len(sheepLocations[-1]), N
             _, assignment = linear_sum_assignment(C)
             extras = list(r-set(assignment))
             if len(extras) > 0:
                 extras.sort()
                 extras.reverse()
-                print extras, N, len(objectLocations)
                 for ex in extras:
                     objectLocations.pop(ex)
+            else:
+                objectLocations.pop(N-1)
             l = len(objectLocations)
+            print 'l=',l
 
+        if frameID > 0:
+            C = cdist(sheepLocations[-1], objectLocations)
+            _, assignment = linear_sum_assignment(C)
+            objectLocations = np.array(objectLocations)[assignment]
         sheepLocations = sheepLocations + [objectLocations]
 
 
