@@ -24,6 +24,7 @@ if os.getcwd().rfind('b1033128') > 0:
 elif os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
     save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
+
 plot = 's'
 darkTolerance = 173.5
 sizeOfObject = 60
@@ -32,7 +33,7 @@ restart = 0
 
 sheepLocations = []
 frameID = 0
-cropVector = [0,0,0,0]
+cropVector = [1000,1000,2000,2028]
 
 
 cap = cv2.VideoCapture(videoLocation)
