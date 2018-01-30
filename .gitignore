@@ -1,4 +1,6 @@
-*png
-*npy
+*.jpg
+*.png
+*.npy
 .DS*
 *BROKE*
+*.mp4
