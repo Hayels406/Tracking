@@ -48,7 +48,7 @@ if restart > 0:
         frameID +=1
 
 
-while(frameID <= 60):
+while(frameID <= 10):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -65,7 +65,13 @@ while(frameID <= 60):
 
         maxfilter = ndimage.maximum_filter(img, size=2)
 
-        filtered, minPixels, oneSheepPixels, radi, prediction_Objects = createBinaryImage(frameID, sizeOfObject, radiIN, sheepLocations, cropVector, maxfilter)
+        if frameID > 6:
+            prediction_Objects = predictEuler(np.array(sheepLocations))
+            print 'p_o', np.shape(prediction_Objects)
+        else:
+            prediction_Objects = []
+
+        filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
 
         plt.imshow(filtered, cmap = 'gray')
         if frameID > 6:
@@ -153,7 +159,7 @@ while(frameID <= 60):
                                 row_ind, assignment = linear_sum_assignment(C)
                                 mean_C_i = (C[row_ind,  assignment].sum())/num_new_objects_i
                                 C = cdist(new_objects_K, pred_objects)
-                                row_ind, assigment = linear_sum_assignment(C)
+                                row_ind, assignment = linear_sum_assignment(C)
                                 mean_C_k = (C[row_ind,  assignment].sum())/num_new_objects_k
 
                                 check = 'Off'
@@ -244,6 +250,9 @@ while(frameID <= 60):
             for i in range(frameID):
                 sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
+            prediction_Objects = predictEuler(np.array(sheepLocations))
+            filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
+
         elif frameID == 21:
             print len(objectLocations), 'here2: len(obj)'
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
@@ -251,6 +260,9 @@ while(frameID <= 60):
             for i in range(frameID):
                 sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
+            prediction_Objects = predictEuler(np.array(sheepLocations))
+            filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
+
         elif frameID == 25:
             print len(objectLocations), 'here3: len(obj)'
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
@@ -258,14 +270,27 @@ while(frameID <= 60):
             for i in range(frameID):
                 sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
+            prediction_Objects = predictEuler(np.array(sheepLocations))
+            filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
+
 
         l = len(objectLocations)
         print 'l=', l
         while (l > N) & (frameID > 0):
-            C = cdist(sheepLocations[-1],  objectLocations)
+            finalDist = cdist(sheepLocations[-1], objectLocations)
+            if frameID <= 6:
+                _, assignment = linear_sum_assignment(finalDist)
+            else:
+                den2 = []
+                for predictionArea in distImg:
+                    den = []
+                    for point in np.floor(objectLocations):
+                        den += [np.transpose(predictionArea)[int(point[0] - cropX), int(point[1] - cropY)]]
+                    den2 += [(np.max(den) - den)/np.max(den)]
+                _, assignment = linear_sum_assignment(den2)
             r = set(range(N))
             print 'len(shepLoc[-1]), N ', len(sheepLocations[-1]), N
-            _, assignment = linear_sum_assignment(C)
+            
             extras = list(r-set(assignment))
             if len(extras) > 0:
                 extras.sort()
@@ -278,8 +303,17 @@ while(frameID <= 60):
             print 'l=',l
 
         if frameID > 0:
-            C = cdist(sheepLocations[-1], objectLocations)
-            _, assignment = linear_sum_assignment(C)
+            finalDist = cdist(sheepLocations[-1], objectLocations)
+            if frameID <= 6:
+                _, assignment = linear_sum_assignment(finalDist)
+            else:
+                den2 = []
+                for predictionArea in distImg:
+                    den = []
+                    for point in np.floor(objectLocations):
+                        den += [np.transpose(predictionArea)[int(point[0] - cropX), int(point[1] - cropY)]]
+                    den2 += [(np.max(den) - den)/np.max(den)]
+                _, assignment = linear_sum_assignment(den2)
             objectLocations = np.array(objectLocations)[assignment]
         sheepLocations = sheepLocations + [objectLocations]
 

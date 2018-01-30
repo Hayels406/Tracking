@@ -157,7 +157,7 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     cropVector = [cropX, cropY, cropXMax, cropYMax]
     return (fullCropped, cropVector)
 
-def createBinaryImage(frameID, sizeOfObject, radiIN, sheepLoc, cropVector, maxF):
+def createBinaryImage(frameID, sizeOfObject, radiIN, pred_Objects, cropVector, maxF):
     cropX, cropY, cropXMax, cropYMax = cropVector
     if frameID <= 6:
         minPixels = sizeOfObject
@@ -166,30 +166,34 @@ def createBinaryImage(frameID, sizeOfObject, radiIN, sheepLoc, cropVector, maxF)
         filtered = np.copy(maxF)
         filtered[filtered < 65.] = 0.0 #for removing extra shiney grass
         filtered[filtered > 0.] = 255.
-        prediction_Objects = []
+        z = []
+
     if frameID > 6:
         minPixels = 0.75*sizeOfObject
         oneSheepPixels = 0.75*250
         radi = 0.5*radiIN
-        prediction_Objects = predictEuler(np.array(sheepLoc))
+        
         x_r =  np.arange(cropX,  cropXMax)
         y_r =  np.arange(cropY,  cropYMax)
         xx, yy =  np.meshgrid(x_r, y_r)
-        z =  xx*0.
-        s_x, s_y = [3,  3]
-        for point in prediction_Objects:
+        z =  []
+        s_x, s_y = [3, 3]
+        for point in pred_Objects:
             m_x = point[0]
             m_y = point[1]
-            z += (1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))
+            z += [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
         if (frameID > 15)*(frameID < 40):
             m_x = 150 + cropX
             m_y = cropYMax
             s_x,  s_y = [6, 6]
-            z += (1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))
-                
-        filtered = z*np.copy(maxF)
+            extra = [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
+            filtered = (np.array(z+extra).sum(axis = 0))*np.copy(maxF)
+        else:
+            filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)
+
         filtered = 255.*filtered/np.max(filtered)
         filtered[filtered < 5.] = 0
         filtered[filtered > 0.] = 255.
 
-    return (filtered, minPixels, oneSheepPixels, radi, prediction_Objects)
+
+    return (filtered, minPixels, oneSheepPixels, radi, z)
