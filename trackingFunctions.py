@@ -134,10 +134,7 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     cropX, cropY, cropXMax, cropYMax = cropVector
 
     if frameID < 2:
-        cropX = 1000
-        cropY = 1000
-        cropXMax = 2000
-        cropYMax = 2028
+        continue
     elif frameID < 50:
         moveX, moveY = np.min(sheepLoc[-2], axis = 0) - np.min(sheepLoc[-1], axis = 0)
         cropX = int(np.floor(cropX + moveX))

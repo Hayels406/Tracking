@@ -48,7 +48,7 @@ if restart > 0:
         frameID +=1
 
 
-while(frameID <= 10):
+while(frameID <= 30):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -244,7 +244,7 @@ while(frameID <= 10):
         if frameID < 16:
             N = 141
         elif frameID == 16:
-            print len(objectLocations), 'here: len(obj)'
+            print len(objectLocations), 'here: ', len(obj)
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
@@ -254,7 +254,7 @@ while(frameID <= 10):
             filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
 
         elif frameID == 21:
-            print len(objectLocations), 'here2: len(obj)'
+            print len(objectLocations), 'here2: ', len(obj)
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
@@ -264,7 +264,7 @@ while(frameID <= 10):
             filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
 
         elif frameID == 25:
-            print len(objectLocations), 'here3: len(obj)'
+            print len(objectLocations), 'here3: ', len(obj)
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
@@ -275,7 +275,6 @@ while(frameID <= 10):
 
 
         l = len(objectLocations)
-        print 'l=', l
         while (l > N) & (frameID > 0):
             finalDist = cdist(sheepLocations[-1], objectLocations)
             if frameID <= 6:
