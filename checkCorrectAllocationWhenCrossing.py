@@ -5,9 +5,9 @@ from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)
 
-time1 = np.array([[10, 10], [10, 30]])
-time2 = np.array([[40, 30], [40, 10]])
-vel = np.array([[30, 20], [30, -20]])
+time1 = np.array([[10, 10], [10, 30]])*1.
+time2 = np.array([[40, 30], [40, 10]])*1.
+vel = np.array([[30, 20], [30, -20]])*1.
 
 prediction_Objects = time1 + vel
 x_r =  np.arange(0,  50)
@@ -53,9 +53,9 @@ plt.close()
 
 
 ###################################################################################################################
-time1 = np.array([[10, 30], [40, 10]])
-time2 = np.array([[40, 30], [10, 10]])
-vel = np.array([[30, 0], [-30, 0]])
+time1 = np.array([[10, 30], [40, 10]])*1.
+time2 = np.array([[40, 30], [10, 10]])*1.
+vel = np.array([[30, 0], [-30, 0]])*1.
 
 prediction_Objects = time1 + vel
 x_r =  np.arange(0,  50)
@@ -101,9 +101,9 @@ plt.close()
 
 
 ###################################################################################################################
-time1 = np.array([[25, 30], [25, 10]])
-time2 = np.array([[25, 10], [25, 30]])
-vel = np.array([[0, -20], [0, 20]])
+time1 = np.array([[25, 30], [25, 10]])*1.
+time2 = np.array([[25, 10], [25, 30]])*1.
+vel = np.array([[0, -20], [0, 20]])*1.
 
 prediction_Objects = time1 + vel
 x_r =  np.arange(0,  50)

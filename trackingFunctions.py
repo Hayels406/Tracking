@@ -10,6 +10,37 @@ from sklearn.metrics import silhouette_samples, silhouette_score
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
+def extractFromSlice(sheepBlob):
+    sheepBlob = sheepBlob/np.max(sheepBlob) 
+    blob = np.where(sheepBlob < 0.2, 0, 1)
+    cnts = cv2.findContours(np.uint8(blob), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
+    return cv2.minEnclosingCircle(cnts)[0]
+
+def movingaverage(interval, window_size):
+    window= np.ones(int(window_size))/float(window_size)
+    return np.convolve(interval, window, 'same')
+
+def combinePrediction(maxF, predIm, weight, plot = False):
+    ind1 = 1 - weight
+    ind2 = weight
+    combined = maxF**ind1*predIm**ind2
+    if plot == True:
+        plt.subplot(1,3,1)
+        plt.imshow(maxF,  cmap = 'magma')
+        plt.title('Max Filter')
+
+        plt.subplot(1,3,2)
+        plt.imshow(predIm,  cmap = 'magma')
+        plt.title('Prediction')
+
+        plt.subplot(1,3,3)
+        plt.imshow(combined, cmap =  'magma')
+        plt.title('Combination')
+
+        plt.show()
+
+    return combined
+
 def alpha(theta, m, atan):
     xr = int(round(m*np.sin(theta)))
     yr = int(round(m*np.cos(theta)))
@@ -122,8 +153,8 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
     return new_objects
 
 def findVel(locs):
-	vel = (locs[-1] - locs[-6])/5
-	return vel
+    vel = (locs[-1] - locs[-6])/5
+    return vel
 
 def predictEuler(locs):
     vel = findVel(locs)
@@ -134,7 +165,7 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     cropX, cropY, cropXMax, cropYMax = cropVector
 
     if frameID < 2:
-        continue
+        cropVector = cropVector
     elif frameID < 50:
         moveX, moveY = np.min(sheepLoc[-2], axis = 0) - np.min(sheepLoc[-1], axis = 0)
         cropX = int(np.floor(cropX + moveX))
@@ -154,12 +185,11 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     cropVector = [cropX, cropY, cropXMax, cropYMax]
     return (fullCropped, cropVector)
 
-def createBinaryImage(frameID, sizeOfObject, radiIN, pred_Objects, cropVector, maxF):
+def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
     cropX, cropY, cropXMax, cropYMax = cropVector
     if frameID <= 6:
         minPixels = sizeOfObject
         oneSheepPixels = 250
-        radi = radiIN
         filtered = np.copy(maxF)
         filtered[filtered < 65.] = 0.0 #for removing extra shiney grass
         filtered[filtered > 0.] = 255.
@@ -168,7 +198,6 @@ def createBinaryImage(frameID, sizeOfObject, radiIN, pred_Objects, cropVector, m
     if frameID > 6:
         minPixels = 0.75*sizeOfObject
         oneSheepPixels = 0.75*250
-        radi = 0.5*radiIN
         
         x_r =  np.arange(cropX,  cropXMax)
         y_r =  np.arange(cropY,  cropYMax)
@@ -193,4 +222,4 @@ def createBinaryImage(frameID, sizeOfObject, radiIN, pred_Objects, cropVector, m
         filtered[filtered > 0.] = 255.
 
 
-    return (filtered, minPixels, oneSheepPixels, radi, z)
+    return (filtered, minPixels, oneSheepPixels, z)

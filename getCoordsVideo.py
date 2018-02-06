@@ -28,7 +28,6 @@ elif os.getcwd().rfind('hayley') > 0:
 plot = 's'
 darkTolerance = 173.5
 sizeOfObject = 60
-radiIN = 5.
 restart = 0
 
 sheepLocations = []
@@ -49,7 +48,7 @@ if restart > 0:
         frameID +=1
 
 
-while(frameID <= 30):
+while(frameID <= 60):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -68,11 +67,10 @@ while(frameID <= 30):
 
         if frameID > 6:
             prediction_Objects = predictEuler(np.array(sheepLocations))
-            print 'p_o', np.shape(prediction_Objects)
         else:
             prediction_Objects = []
 
-        filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
+        filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
 
         plt.imshow(filtered, cmap = 'gray')
         if frameID > 6:
@@ -104,124 +102,122 @@ while(frameID <= 30):
             if numPixels > minPixels:
                 cnts = cv2.findContours(labelMask, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
                 ((cX, cY), radius) = cv2.minEnclosingCircle(cnts)
-                if (radius > radi) & (radius < 200):
-                    if numPixels < oneSheepPixels:
-                        objectLocations = objectLocations + [[cX, cY]]
+                if numPixels < oneSheepPixels:
+                    objectLocations = objectLocations + [[cX, cY]]
+                else:
+                    x,y,w,h = cv2.boundingRect(cnts)
+
+                    miniImage = img[y: y + h, x: x + w]
+                    if frameID > 6:
+                        lastT = np.array(sheepLocations[-1])
+                        prevID = np.where((lastT[:,0] > x+cropX) & (lastT[:,0] < x+w+cropX) & (lastT[:,1] < y+h+cropY) & (lastT[:,1] > y+cropY))[0]
+                        vel = findVel(np.array(sheepLocations))[prevID]
+                        velMean = np.mean(np.sqrt((vel**2).sum(axis = 1)))
+                        leeway = 3*velMean
+                        prevID = np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0]
+                        prev =  len(prevID)
+
+                        pred_objects =  prediction_Objects[prevID]
+                        pred_objects[:,0] -= cropX
+                        pred_objects[:,1] -= cropY
+                    elif frameID > 0:
+                        lastT = np.array(sheepLocations[-1])
+                        leeway = 3
+                        prevID = np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0]
+                        prev =  len(prevID)
                     else:
-                        x,y,w,h = cv2.boundingRect(cnts)
+                        prev = -1
+                        leeway = 0
 
-                        miniImage = img[y: y + h, x: x + w]
-                        if frameID > 6:
-                            lastT = np.array(sheepLocations[-1])
-                            prevID = np.where((lastT[:,0] > x+cropX) & (lastT[:,0] < x+w+cropX) & (lastT[:,1] < y+h+cropY) & (lastT[:,1] > y+cropY))[0]
-                            vel = findVel(np.array(sheepLocations))[prevID]
-                            velMean = np.mean(np.sqrt((vel**2).sum(axis = 1)))
-                            leeway = 3*velMean
-                            prevID = np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0]
-                            prev =  len(prevID)
+                    new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = prev)
+                    new_objects = iris(miniImage, x, y)
 
-                            pred_objects =  prediction_Objects[prevID]
-                            pred_objects[:,0] -= cropX
-                            pred_objects[:,1] -= cropY
-                        elif frameID > 0:
-                            lastT = np.array(sheepLocations[-1])
-                            leeway = 3
-                            prevID = np.where((lastT[:,0] > x+cropX-leeway) & (lastT[:,0] < x+w+cropX+leeway) & (lastT[:,1] < y+h+cropY+leeway) & (lastT[:,1] > y+cropY-leeway))[0]
-                            prev =  len(prevID)
-                        else:
-                            prev = -1
-                            leeway = 0
+                    num_new_objects_i = np.shape(new_objects)[0]
+                    num_new_objects_k = np.shape(new_objects_K)[0]
 
-                        new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = prev)
-                        new_objects = iris(miniImage, x, y)
+                    if num_new_objects_i == 1:
+                        check = 'Off'
+                        objectLocations += new_objects_K
+                    elif num_new_objects_k == 1:
+                        check = 'Off'
+                        objectLocations += new_objects
+                    elif (frameID > 0) & (num_new_objects_i != prev):
+                        check = 'Off'
+                        objectLocations += new_objects_K
+                    elif num_new_objects_i == num_new_objects_k:
+                        C = cdist(new_objects, new_objects_K)
+                        row_ind, assignment = linear_sum_assignment(C)
+                        av_dist = C[row_ind, assignment].sum()/num_new_objects_i
 
-                        num_new_objects_i = np.shape(new_objects)[0]
-                        num_new_objects_k = np.shape(new_objects_K)[0]
-
-                        if num_new_objects_i == 1:
+                        if av_dist < 3.5:
                             check = 'Off'
-                            objectLocations += new_objects_K
-                        elif num_new_objects_k == 1:
-                            check = 'Off'
-                            objectLocations += new_objects
-                        elif (frameID > 0) & (num_new_objects_i != prev):
-                            check = 'Off'
-                            objectLocations += new_objects_K
-                        elif num_new_objects_i == num_new_objects_k:
-                            C = cdist(new_objects, new_objects_K)
+                            objectLocations = objectLocations + new_objects_K
+                        elif frameID > 6:
+                            C = cdist(new_objects, pred_objects)
                             row_ind, assignment = linear_sum_assignment(C)
-                            av_dist = C[row_ind, assignment].sum()/num_new_objects_i
+                            mean_C_i = (C[row_ind,  assignment].sum())/num_new_objects_i
+                            C = cdist(new_objects_K, pred_objects)
+                            row_ind, assignment = linear_sum_assignment(C)
+                            mean_C_k = (C[row_ind,  assignment].sum())/num_new_objects_k
 
-                            if av_dist < 3.5:
-                                check = 'Off'
-                                objectLocations = objectLocations + new_objects_K
-                            elif frameID > 6:
-                                C = cdist(new_objects, pred_objects)
-                                row_ind, assignment = linear_sum_assignment(C)
-                                mean_C_i = (C[row_ind,  assignment].sum())/num_new_objects_i
-                                C = cdist(new_objects_K, pred_objects)
-                                row_ind, assignment = linear_sum_assignment(C)
-                                mean_C_k = (C[row_ind,  assignment].sum())/num_new_objects_k
-
-                                check = 'Off'
-                                if mean_C_i < mean_C_k:
-                                    objectLocations = objectLocations + new_objects
-                                else:
-                                    objectLocations = objectLocations + new_objects_K
-
-
-
-
-                        if check == 'On':
-                            plt.close()
-                            #plt.figure(dpi = 300)
-                            plt.subplot(2, 2, 2)
-                            plt.imshow(fullCropped)
-                            plt.scatter(cX, cY, color = 'k')
-
-                            plt.subplot(2, 2, 1)
-                            plt.imshow(fullCropped)
-                            plt.ylim(ymin=y+h-1, ymax=y)
-                            plt.xlim(xmin=x, xmax=x+w-1)
-
-                            plt.subplot(2, 2, 3)
-                            plt.imshow(img)
-                            plt.ylim(ymin=y+h-1+leeway, ymax=y-leeway)
-                            plt.xlim(xmin=x-leeway, xmax=x+w-1+leeway)
-                            if frameID > 6:
-                                plt.scatter(lastT[prevID][:,0]-cropX, lastT[prevID][:,1]-cropY, color = 'k', alpha = 0.5, label = 'previous')
-                                plt.scatter(prediction_Objects[prevID][:,0]-cropX, prediction_Objects[prevID][:,1]-cropY, color = 'b', marker = 's', label = 'prediction')
-                            plt.scatter(np.array(new_objects_K)[:,0], np.array(new_objects_K)[:,1], color = 'green', marker = '^', label = 'kmeans')
-                            plt.scatter(np.array(new_objects)[:,0], np.array(new_objects)[:,1], color = 'red', label = 'iris', alpha = 0.5)
-                            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-
-                            plt.pause(0.00001)
-
-
-                            if prev < 0:
-                                text = raw_input("Choose method for this mini image: ")
-                            else:
-                                text = raw_input("Choose method for this mini image ("+str(prev)+"): ")
-
-                            if text == '1' or text == 'centre':
-                                objectLocations = objectLocations + [[cX+cropX, cY+cropY]]
-                            elif text == '2' or text == 'kmeans':
-                                objectLocations = objectLocations + new_objects_K
-                            elif text == '3' or text == 'iris':
+                            check = 'Off'
+                            if mean_C_i < mean_C_k:
                                 objectLocations = objectLocations + new_objects
-                            elif text == '0':
-                                objectLocations = objectLocations
-                            elif text == 'd':
-                                print 'kmeans: ',  new_objects_K
-                                print 'iris: ',  new_objects
-                                print 'previous: ',  prev
-                                print 'dist: ',  sum_C/num_new_objects_i
-                                objectLocations = objectLocations + new_objects_K
                             else:
-                                print 'you gave an awful answer: used kmeans'
                                 objectLocations = objectLocations + new_objects_K
 
-                            plt.clf()
+
+
+
+                    if check == 'On':
+                        plt.close()
+                        plt.subplot(2, 2, 2)
+                        plt.imshow(fullCropped)
+                        plt.scatter(cX, cY, color = 'k')
+
+                        plt.subplot(2, 2, 1)
+                        plt.imshow(fullCropped)
+                        plt.ylim(ymin=y+h-1, ymax=y)
+                        plt.xlim(xmin=x, xmax=x+w-1)
+
+                        plt.subplot(2, 2, 3)
+                        plt.imshow(img)
+                        plt.ylim(ymin=y+h-1+leeway, ymax=y-leeway)
+                        plt.xlim(xmin=x-leeway, xmax=x+w-1+leeway)
+                        if frameID > 6:
+                            plt.scatter(lastT[prevID][:,0]-cropX, lastT[prevID][:,1]-cropY, color = 'k', alpha = 0.5, label = 'previous')
+                            plt.scatter(prediction_Objects[prevID][:,0]-cropX, prediction_Objects[prevID][:,1]-cropY, color = 'b', marker = 's', label = 'prediction')
+                        plt.scatter(np.array(new_objects_K)[:,0], np.array(new_objects_K)[:,1], color = 'green', marker = '^', label = 'kmeans')
+                        plt.scatter(np.array(new_objects)[:,0], np.array(new_objects)[:,1], color = 'red', label = 'iris', alpha = 0.5)
+                        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+
+                        plt.pause(0.00001)
+
+
+                        if prev < 0:
+                            text = raw_input("Choose method for this mini image: ")
+                        else:
+                            text = raw_input("Choose method for this mini image ("+str(prev)+"): ")
+
+                        if text == '1' or text == 'centre':
+                            objectLocations = objectLocations + [[cX+cropX, cY+cropY]]
+                        elif text == '2' or text == 'kmeans':
+                            objectLocations = objectLocations + new_objects_K
+                        elif text == '3' or text == 'iris':
+                            objectLocations = objectLocations + new_objects
+                        elif text == '0':
+                            objectLocations = objectLocations
+                        elif text == 'd':
+                            print 'kmeans: ',  new_objects_K
+                            print 'iris: ',  new_objects
+                            print 'previous: ',  prev
+                            print 'dist: ',  sum_C/num_new_objects_i
+                            objectLocations = objectLocations + new_objects_K
+                        else:
+                            print 'you gave an awful answer: used kmeans'
+                            objectLocations = objectLocations + new_objects_K
+
+                        plt.clf()
 
 
         objectLocations = np.array(objectLocations)
@@ -245,34 +241,31 @@ while(frameID <= 30):
         if frameID < 16:
             N = 141
         elif frameID == 16:
-            print len(objectLocations), 'here: ', len(obj)
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
                 sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
             prediction_Objects = predictEuler(np.array(sheepLocations))
-            filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
+            filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
 
         elif frameID == 21:
-            print len(objectLocations), 'here2: ', len(obj)
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
                 sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
             prediction_Objects = predictEuler(np.array(sheepLocations))
-            filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
+            filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
 
         elif frameID == 25:
-            print len(objectLocations), 'here3: ', len(obj)
             prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
             saveLocation = objectLocations[prevID]
             for i in range(frameID):
                 sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
             prediction_Objects = predictEuler(np.array(sheepLocations))
-            filtered, minPixels, oneSheepPixels, radi, distImg = createBinaryImage(frameID, sizeOfObject, radiIN, prediction_Objects, cropVector, maxfilter)
+            filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
 
 
         l = len(objectLocations)
@@ -289,7 +282,6 @@ while(frameID <= 30):
                     den2 += [(np.max(den) - den)/np.max(den)]
                 _, assignment = linear_sum_assignment(den2)
             r = set(range(N))
-            print 'len(shepLoc[-1]), N ', len(sheepLocations[-1]), N
             
             extras = list(r-set(assignment))
             if len(extras) > 0:
@@ -300,7 +292,6 @@ while(frameID <= 30):
             else:
                 objectLocations.pop(N-1)
             l = len(objectLocations)
-            print 'l=',l
 
         if frameID > 0:
             finalDist = cdist(sheepLocations[-1], objectLocations)
