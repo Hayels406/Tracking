@@ -9,6 +9,43 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
+from collections import Counter
+
+def organiseLocations(objects, assign, frameId):
+    if (frameId <= 6) & (frameId > 0):
+        objects = np.array(objects)[assign]
+    elif frameId > 6:
+        count = Counter(assign)
+        multiples = np.where(np.array(count.values()) > 1)[0]
+        multiples = multiples.tolist()
+        multiples.sort()
+        multiples.reverse()
+        for v in multiples:
+            ind = np.where(np.array(assign) == v)[0]
+            points = np.array(objects)[ind]
+            newPoint = points.mean(axis = 0)
+            for i in ind[::-1]:
+                objects.pop(i)
+                assign.pop(i)
+            objects += [newPoint.tolist()]
+            assign += [v]
+        objects = np.array(objects)[np.argsort(assign)]
+    return objects
+
+def assignSheep(coords, dImg, prevId):
+    if type(coords[0]) != float:
+        den2 = []
+        for predictionArea in np.array(dImg)[prevId]:
+            den = []
+            for point in np.floor(coords):
+                den += [np.transpose(predictionArea)[int(point[0]), int(point[1])]]
+            den2 += [(np.max(den) - den)/np.max(den)]
+        _, assignment = linear_sum_assignment(den2)
+        return prevId[assignment].tolist()
+    else:
+        return prevId.tolist()
+
+
 
 def extractFromSlice(sheepBlob):
     sheepBlob = sheepBlob/np.max(sheepBlob) 
@@ -120,7 +157,7 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
             if np.shape(np.transpose(np.where(miniImg > threshold)))[0] - 1 < n_clusters:
                 av_score += [0]
                 continue
-            clusterer = KMeans(n_clusters=n_clusters, random_state=10)
+            clusterer = KMeans(n_clusters=n_clusters,random_state = 10)
 
             cluster_labels = clusterer.fit_predict(np.transpose(np.where(miniImg > threshold)))
 
@@ -128,7 +165,7 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
 
         approxNumber =  np.where(av_score == np.max(av_score))[0][0] + 2
         if approxNumber < np.shape(np.transpose(np.where(miniImg > threshold)))[0] - 1:
-            clusterer = KMeans(n_clusters=approxNumber, random_state=10).fit(np.transpose(np.where(miniImg > threshold)))
+            clusterer = KMeans(n_clusters=approxNumber,random_state = 10).fit(np.transpose(np.where(miniImg > threshold)))
             cluster_centers = clusterer.cluster_centers_
 
             cluster_list = np.copy(cluster_centers)
@@ -140,7 +177,7 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
             new_objects = [[cX, cY]]
 
     else:
-        clusterer = KMeans(n_clusters=previous, random_state=10)
+        clusterer = KMeans(n_clusters=previous,random_state = 10)
         clusterer = clusterer.fit(np.transpose(np.where(miniImg > threshold)))
         cluster_centers = clusterer.cluster_centers_
         cluster_list = np.copy(cluster_centers)
@@ -160,6 +197,60 @@ def predictEuler(locs):
     vel = findVel(locs)
     prediction_Objects = locs[-1] + vel
     return prediction_Objects
+
+def doCheck(fullC, objL, cx, cy, Img, new_i, new_k, X, Y, H, W, K, margin=0):
+    plt.close()
+    plt.subplot(2, 2, 2)
+    plt.imshow(fullC)
+    plt.scatter(cx, cy, color = 'k')
+
+    plt.subplot(2, 2, 1)
+    plt.imshow(fullC)
+    plt.ylim(ymin=Y+H-1, ymax=Y)
+    plt.xlim(xmin=X, xmax=X+W-1)
+
+    plt.subplot(2, 2, 3)
+    plt.imshow(Img)
+    plt.ylim(ymin=Y+H-1+margin, ymax=Y-margin)
+    plt.xlim(xmin=X-margin, xmax=X+W-1+margin)
+    plt.scatter(np.array(new_k)[:,0], np.array(new_k)[:,1], color = 'green', marker = '^', label = 'kmeans')
+    plt.scatter(np.array(new_i)[:,0], np.array(new_i)[:,1], color = 'red', label = 'iris', alpha = 0.5)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+
+    plt.pause(0.00001)
+
+
+    if K < 0:
+        text = raw_input("Choose method for this mini image: ")
+    else:
+        text = raw_input("Choose method for this mini image ("+str(K)+"): ")
+
+    if text == '1' or text == 'centre':
+        objL = objL + [[cx+cropX, cy+cropY]]
+    elif text == '2' or text == 'kmeans':
+        objL = objL + new_k
+    elif text == '3' or text == 'iris':
+        objL = objL + new_i
+    elif text == '0':
+        objL = objL
+    elif text == 'd':
+        print 'kmeans: ',  new_k
+        print 'iris: ',  new_i
+        print 'previous: ',  prev
+        print 'dist: ',  sum_C/num_new_i_i
+        objL = objL + new_k
+    else:
+        print 'you gave an awful answer: used kmeans'
+        objL = objL + new_k
+
+    plt.close()
+    return objL
+
+def getPreviousID(prev, X, Y, W, H, cropx, cropy, margin):
+    return np.where((prev[:,0] > X+cropx-margin) & (prev[:,0] < X+W+cropx+margin) & (prev[:,1] < Y+H+cropy+margin) & (prev[:,1] > Y+cropy-margin))[0]
+
+def getPredictedID(pred, X, Y, W, H, cropx, cropy):
+    return np.where((pred[:,0] > X+cropx-3) & (pred[:,0] < X+W+cropx+3) & (pred[:,1] < Y+H+cropy+3) & (pred[:,1] > Y+cropy-3))[0]
 
 def movingCrop(frameID, full, sheepLoc, cropVector):
     cropX, cropY, cropXMax, cropYMax = cropVector
@@ -195,9 +286,9 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         filtered[filtered > 0.] = 255.
         z = []
 
-    if frameID > 6:
-        minPixels = 0.75*sizeOfObject
-        oneSheepPixels = 0.75*250
+    elif frameID > 6:
+        minPixels = 0*sizeOfObject
+        oneSheepPixels = 0.7*250
         
         x_r =  np.arange(cropX,  cropXMax)
         y_r =  np.arange(cropY,  cropYMax)
