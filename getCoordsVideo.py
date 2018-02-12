@@ -110,10 +110,10 @@ while(frameID <= 9):
             # large, then add it to our mask of "large blobs"
 
             if numPixels > minPixels:
-                cnts = cv2.findContours(labelMask, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
+                cnts = cv2.findContours(np.copy(labelMask), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
                 ((cX, cY), radius) = cv2.minEnclosingCircle(cnts)
-                x,y,w,h = cv2.boundingRect(cnts)
-
+                rectangle = cv2.boundingRect(cnts)
+                x,y,w,h = rectangle
                 if frameID == 0:
                     if numPixels < oneSheepPixels:
                         objectLocations += [[cX, cY]]
@@ -145,7 +145,7 @@ while(frameID <= 9):
                                 objectLocations += new_objects_K
 
                         if check == 'On':
-                            objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, x, y, h, w, k)
+                            objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
 
                 elif frameID <= 6:
                     if numPixels < oneSheepPixels:
@@ -172,29 +172,34 @@ while(frameID <= 9):
                             if av_dist < 3.5:
                                 check = 'Off'
                                 objectLocations += new_objects_K
+                                
+
+
 
                         else:
                             check = 'Off'
                             objectLocations += new_objects_K
 
                         if check == 'On':
-                            objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, x, y, h, w, k)
+                            objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
 
 
                 else:
-                    Ids = getPredictedID(prediction_Objects, x, y, w, h, cropX, cropY)
-                    k = len(Ids)
+                    pred_objects, Ids = getPredictedID(prediction_Objects, np.copy(labelMask),  cropVector)
+                    k = len(pred_objects)
                     check = 'Off'
 
                     if k == 1:
                         objectLocations += [[cX, cY]]
                         assignmentVec += assignSheep([cX, cY], distImg, Ids)
                     else:
-                        pred_objects =  prediction_Objects[Ids]
                         pred_objects[:,0] -= cropX
                         pred_objects[:,1] -= cropY
 
-                        miniImage = img[y: y + h, x: x + w]
+                        labelImg = np.copy(img)
+                        labelImg[labels != label] = 0.
+
+                        miniImage = labelImg[y: y + h, x: x + w]
 
                         new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = k)
                         new_objects_i   = iris(miniImage, x, y)
@@ -212,10 +217,10 @@ while(frameID <= 9):
                             mean_C_k = (C[row_ind,  assignment].sum())/num_new_objects_K
 
                             if mean_C_i < mean_C_k:
-                                objectLocations = objectLocations + new_objects_i
+                                objectLocations += new_objects_i
                                 assignmentVec += assignSheep(new_objects_i, distImg, Ids)
                             else:
-                                objectLocations = objectLocations + new_objects_K
+                                objectLocations += new_objects_K
                                 assignmentVec += assignSheep(new_objects_K, distImg, Ids)
 
                         else:
@@ -223,10 +228,6 @@ while(frameID <= 9):
                             assignmentVec += assignSheep(new_objects_K, distImg, Ids)
 
 
-#                        miniImage2 = np.copy(miniImage)
- #                       for point in new_objects_K:
-  #                          miniImage2[]
-   #                     cv2.imshow(miniImage)
 
 
             
@@ -267,8 +268,7 @@ while(frameID <= 9):
         if (frameID > 0) & (frameID <= 6):
             finalDist = cdist(sheepLocations[-1], objectLocations)
             _, assignmentVec = linear_sum_assignment(finalDist)
-        if frameID == 7:
-            print len(objectLocations)
+
         finalLocations = organiseLocations(copy.deepcopy(objectLocations), copy.deepcopy(assignmentVec), frameID)
 
         l = len(finalLocations)

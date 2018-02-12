@@ -11,6 +11,22 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from collections import Counter
 
+
+def getPredictedID(pred, mask, cropV):
+    cropX,  cropY, _, _ = cropV
+    objects = pred.tolist()
+    points =  np.array(map(int,  np.floor(np.array(objects) - np.array([cropX, cropY])).flatten()))
+    points =  (points.reshape(len(points)/2,  2)).tolist()
+    containedPoints = []
+    ids = []
+    for i in range(len(points)):
+        point = points[i]
+        if mask[point[1],point[0]] == 1:
+            containedPoints += [point]
+            ids += [i]
+    return np.array(containedPoints), ids 
+
+
 def organiseLocations(objects, assign, frameId):
     if (frameId <= 6) & (frameId > 0):
         objects = np.array(objects)[assign]
@@ -32,6 +48,7 @@ def organiseLocations(objects, assign, frameId):
         objects = np.array(objects)[np.argsort(assign)]
     return objects
 
+
 def assignSheep(coords, dImg, prevId):
     if type(coords[0]) != float:
         den2 = []
@@ -41,9 +58,9 @@ def assignSheep(coords, dImg, prevId):
                 den += [np.transpose(predictionArea)[int(point[0]), int(point[1])]]
             den2 += [(np.max(den) - den)/np.max(den)]
         _, assignment = linear_sum_assignment(den2)
-        return prevId[assignment].tolist()
+        return np.array(prevId)[np.argsort(assignment)].tolist()
     else:
-        return prevId.tolist()
+        return prevId
 
 
 
@@ -198,7 +215,8 @@ def predictEuler(locs):
     prediction_Objects = locs[-1] + vel
     return prediction_Objects
 
-def doCheck(fullC, objL, cx, cy, Img, new_i, new_k, X, Y, H, W, K, margin=0):
+def doCheck(fullC, objL, cx, cy, Img, new_i, new_k, rect, K, margin=0):
+    X, Y, H, W = rect
     plt.close()
     plt.subplot(2, 2, 2)
     plt.imshow(fullC)
@@ -248,9 +266,6 @@ def doCheck(fullC, objL, cx, cy, Img, new_i, new_k, X, Y, H, W, K, margin=0):
 
 def getPreviousID(prev, X, Y, W, H, cropx, cropy, margin):
     return np.where((prev[:,0] > X+cropx-margin) & (prev[:,0] < X+W+cropx+margin) & (prev[:,1] < Y+H+cropy+margin) & (prev[:,1] > Y+cropy-margin))[0]
-
-def getPredictedID(pred, X, Y, W, H, cropx, cropy):
-    return np.where((pred[:,0] > X+cropx-3) & (pred[:,0] < X+W+cropx+3) & (pred[:,1] < Y+H+cropy+3) & (pred[:,1] > Y+cropy-3))[0]
 
 def movingCrop(frameID, full, sheepLoc, cropVector):
     cropX, cropY, cropXMax, cropYMax = cropVector

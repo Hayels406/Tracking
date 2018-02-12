@@ -20,9 +20,9 @@ def errorScatterCol(locations, pred):
 
 	colors = [cm.prism(x) for x in np.linspace(0, 1, 20).tolist()*8]
 	for j in range(len(points1)):
-		plt.scatter(points2[j,0], points2[j,1], marker=r"$ {} $".format('w'), color = colors[j])
-		plt.scatter(points1[j,0], points1[j,1], marker=r"$ {} $".format('n'), color = colors[j])
-		plt.scatter(pred[j,0], pred[j,1], marker=r"$ {} $".format('p'), color = colors[j])
+		plt.scatter(points2[j,0], points2[j,1], marker='s', color = colors[j])
+		plt.scatter(points1[j,0], points1[j,1], marker='o', color = colors[j])
+		plt.scatter(pred[j,0], pred[j,1], marker='p', color = colors[j])
 	plt.gca().invert_yaxis()
 	plt.show()
 
