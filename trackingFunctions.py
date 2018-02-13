@@ -216,7 +216,7 @@ def predictEuler(locs):
     return prediction_Objects
 
 def doCheck(fullC, objL, cx, cy, Img, new_i, new_k, rect, K, margin=0):
-    X, Y, H, W = rect
+    X, Y, W, H = rect
     plt.close()
     plt.subplot(2, 2, 2)
     plt.imshow(fullC)
@@ -302,7 +302,7 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         z = []
 
     elif frameID > 6:
-        minPixels = 0*sizeOfObject
+        minPixels = 10
         oneSheepPixels = 0.7*250
         
         x_r =  np.arange(cropX,  cropXMax)
@@ -310,16 +310,29 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         xx, yy =  np.meshgrid(x_r, y_r)
         z =  []
         s_x, s_y = [3, 3]
+        if frameID == 18:
+            pred_Objects = pred_Objects[:-1]
         for point in pred_Objects:
             m_x = point[0]
             m_y = point[1]
             z += [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
-        if (frameID > 15)*(frameID < 40):
+        if (frameID == 16):
             m_x = 150 + cropX
             m_y = cropYMax
-            s_x,  s_y = [6, 6]
+            s_x, s_y = [6, 6]
             extra = [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
             filtered = (np.array(z+extra).sum(axis = 0))*np.copy(maxF)
+        elif (frameID == 18):
+            m_x = 140 + cropX
+            m_y = cropYMax
+            s_x, s_y = [2, 2]
+            z += [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
+
+            m_x = 170 + cropX
+            m_y = cropYMax
+            s_x, s_y = [2, 2]
+            z += [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
+            filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)
         else:
             filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)
 

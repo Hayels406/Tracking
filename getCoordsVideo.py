@@ -28,11 +28,12 @@ from trackingFunctions import getPredictedID
 if os.getcwd().rfind('b1033128') > 0:
     videoLocation = '/home/b1033128/Documents/throughFenceRL.mp4'
     save = '/home/b1033128/Documents/throughFenceRL/'
+    dell = True
 elif os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
     save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
 
-plot = 'N'
+plot = 's'
 darkTolerance = 173.5
 sizeOfObject = 60
 restart = 0
@@ -55,7 +56,7 @@ if restart > 0:
         frameID +=1
 
 
-while(frameID <= 9):
+while(frameID <= 18):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -189,10 +190,28 @@ while(frameID <= 9):
                     k = len(pred_objects)
                     check = 'Off'
 
+                    if (frameID == 16) & (label == np.unique(labels)[-2]):
+                        objectLocations += [[cX, cY]]
+                        assignmentVec += [141]
+                        for i in range(frameID):
+                            sheepLocations[i] = np.append(sheepLocations[i], [[cX+cropX, cY+cropY]], axis = 0)
+                        k = -1
+
+                    if (frameID == 17) & (label == np.unique(labels)[-1]):
+                        new_objects_manual = [[158.,  1030.], [147.,  cropYMax],  [170., cropYMax]]
+                        objectLocations += new_objects_manual
+                        assignmentVec += [141, 142,  143]
+                        for point in new_objects_manual[1:]:
+                            for i in range(frameID):
+                                sheepLocations[i] = np.append(sheepLocations[i], [[point[0]+cropX, point[1]+cropY]], axis = 0)
+                        k = -1
+
+
+
                     if k == 1:
                         objectLocations += [[cX, cY]]
                         assignmentVec += assignSheep([cX, cY], distImg, Ids)
-                    else:
+                    elif k > 1:
                         pred_objects[:,0] -= cropX
                         pred_objects[:,1] -= cropY
 
@@ -240,31 +259,10 @@ while(frameID <= 9):
         if frameID < 16:
             N = 141
         elif frameID == 16:
-            prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
-            saveLocation = objectLocations[prevID]
-            for i in range(frameID):
-                sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
             N += 1
-            assignmentVec += [141]
-
-        elif frameID == 21:
-            prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
-            saveLocation = objectLocations[prevID]
-            for i in range(frameID):
-                sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
-            N += 1
-            prediction_Objects = predictEuler(np.array(sheepLocations))
-            filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
-
-        elif frameID == 25:
-            prevID =  np.where(np.array(objectLocations)[:,1] == np.max(np.array(objectLocations)[:,1]))[0][0]
-            saveLocation = objectLocations[prevID]
-            for i in range(frameID):
-                sheepLocations[i] = np.append(sheepLocations[i], [saveLocation], axis = 0)
-            N += 1
-            prediction_Objects = predictEuler(np.array(sheepLocations))
-            filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
-
+        elif frameID == 17:
+            N += 2 
+        
         if (frameID > 0) & (frameID <= 6):
             finalDist = cdist(sheepLocations[-1], objectLocations)
             _, assignmentVec = linear_sum_assignment(finalDist)
@@ -305,3 +303,6 @@ cap.release()
 
 np.save('locfull.npy', np.array(sheepLocations))
 plt.close()
+
+if dell == True:
+    os.system('notify-send Tracking Complete')
