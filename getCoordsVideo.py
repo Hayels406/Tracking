@@ -25,20 +25,26 @@ from trackingFunctions import doCheck
 from trackingFunctions import getPreviousID
 from trackingFunctions import getPredictedID
 
-if os.getcwd().rfind('b1033128') > 0:
+if os.getcwd().rfind('Uni') > 0:
     videoLocation = '/home/b1033128/Documents/throughFenceRL.mp4'
     save = '/home/b1033128/Documents/throughFenceRL/'
     dell = True
+    brk = False
 elif os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
     save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
+else:
+    videoLocation = '/data/b1033128/Videos/throughFenceRL.mp4'
+    save = '/data/b1033128/Tracking/throughFenceRL/'
+    dell = False
 
 plot = 's'
 darkTolerance = 173.5
 sizeOfObject = 60
-restart = 0
+restart = 40
 
 sheepLocations = []
+sheepVelocity = []
 frameID = 0
 cropVector = [1000,1000,2000,2028]
 
@@ -49,14 +55,15 @@ print 'You have', length, 'frames', videoLocation
 
 if restart > 0:
     sheepLocations, cropVector = np.load('loc'+str(restart)+'.npy')
-
+    sheepLocations =  map(np.array,  sheepLocations)
     while(frameID <= restart):
         ret, frame = cap.read()
         print frameID
         frameID +=1
+    N = len(sheepLocations[0])
 
 
-while(frameID <= 18):
+while(frameID <= 50):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -74,8 +81,10 @@ while(frameID <= 18):
         maxfilter = ndimage.maximum_filter(img, size=2)
 
         if frameID > 6:
-            prediction_Objects = predictEuler(np.array(sheepLocations))
+            vel = findVel(sheepLocations)
+            prediction_Objects = predictEuler(np.array(sheepLocations), vel)
         else:
+            vel = []
             prediction_Objects = []
 
         filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
@@ -178,7 +187,7 @@ while(frameID <= 18):
 
 
                         else:
-                            check = 'Off'
+                            check = 'Off' 
                             objectLocations += new_objects_K
 
                         if check == 'On':
@@ -198,7 +207,7 @@ while(frameID <= 18):
                         k = -1
 
                     if (frameID == 17) & (label == np.unique(labels)[-1]):
-                        new_objects_manual = [[158.,  1030.], [147.,  cropYMax],  [170., cropYMax]]
+                        new_objects_manual = [[158.,  1030.], [147.,  np.shape(fullCropped)[0] - 1],  [170., np.shape(fullCropped)[0] - 1]]
                         objectLocations += new_objects_manual
                         assignmentVec += [141, 142,  143]
                         for point in new_objects_manual[1:]:
@@ -282,21 +291,25 @@ while(frameID <= 18):
                 plt.pause(15)
 
         sheepLocations = sheepLocations + [finalLocations]
+        sheepVelocity = sheepVelocity + [vel]
 
 
         print 'frameID: ' + str(frameID)+ ', No. objects located:', l
 
         if l < N:
+            brk = True
             print 'you lost sheep'
             break
         if l > N:
+            brk = True
             print 'you gained sheep'
             break
 
-        frameID += 1
 
         if np.mod(frameID,50) == 0:
             np.save('loc'+str(frameID), (np.array(sheepLocations), cropVector))
+
+        frameID += 1
 
 cap.release()
 
@@ -305,4 +318,7 @@ np.save('locfull.npy', np.array(sheepLocations))
 plt.close()
 
 if dell == True:
-    os.system('notify-send Tracking Complete')
+    if brk == False:
+        os.system('notify-send Tracking Complete')
+    else:
+        os.system('notify-send Tracking Failed')

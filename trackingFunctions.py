@@ -24,7 +24,18 @@ def getPredictedID(pred, mask, cropV):
         if mask[point[1],point[0]] == 1:
             containedPoints += [point]
             ids += [i]
-    return np.array(containedPoints), ids 
+    if len(np.array(containedPoints)) == 0:
+        points =  np.array(map(int,  np.ceil(np.array(objects) - np.array([cropX, cropY])).flatten()))
+        points =  (points.reshape(len(points)/2,  2)).tolist()
+        containedPoints = []
+        ids = []
+        for i in range(len(points)):
+            point = points[i]
+            if mask[point[1],point[0]] == 1:
+                containedPoints += [point]
+                ids += [i]
+
+    return np.array(containedPoints), ids
 
 
 def organiseLocations(objects, assign, frameId):
@@ -37,6 +48,7 @@ def organiseLocations(objects, assign, frameId):
         multiples.sort()
         multiples.reverse()
         for v in multiples:
+            print 'multiples'
             ind = np.where(np.array(assign) == v)[0]
             points = np.array(objects)[ind]
             newPoint = points.mean(axis = 0)
@@ -49,14 +61,15 @@ def organiseLocations(objects, assign, frameId):
     return objects
 
 
-def assignSheep(coords, dImg, prevId):
+def assignSheep(coords, dImg, prevId, centre=[0,0]):
     if type(coords[0]) != float:
         den2 = []
+        relativeCoords = np.copy(coords) - np.array(centre)
         for predictionArea in np.array(dImg)[prevId]:
             den = []
-            for point in np.floor(coords):
-                den += [np.transpose(predictionArea)[int(point[0]), int(point[1])]]
-            den2 += [(np.max(den) - den)/np.max(den)]
+            for point in np.fix(relativeCoords):
+                den += [np.transpose(predictionArea)[int(point[0]+centre[0]), int(point[1]+centre[1])]]
+            den2 += [1.0/(np.array(den)+1e-8)]
         _, assignment = linear_sum_assignment(den2)
         return np.array(prevId)[np.argsort(assignment)].tolist()
     else:
@@ -65,7 +78,7 @@ def assignSheep(coords, dImg, prevId):
 
 
 def extractFromSlice(sheepBlob):
-    sheepBlob = sheepBlob/np.max(sheepBlob) 
+    sheepBlob = sheepBlob/np.max(sheepBlob)
     blob = np.where(sheepBlob < 0.2, 0, 1)
     cnts = cv2.findContours(np.uint8(blob), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
     return cv2.minEnclosingCircle(cnts)[0]
@@ -210,8 +223,7 @@ def findVel(locs):
     vel = (locs[-1] - locs[-6])/5
     return vel
 
-def predictEuler(locs):
-    vel = findVel(locs)
+def predictEuler(locs, vel):
     prediction_Objects = locs[-1] + vel
     return prediction_Objects
 
@@ -244,7 +256,7 @@ def doCheck(fullC, objL, cx, cy, Img, new_i, new_k, rect, K, margin=0):
         text = raw_input("Choose method for this mini image ("+str(K)+"): ")
 
     if text == '1' or text == 'centre':
-        objL = objL + [[cx+cropX, cy+cropY]]
+        objL = objL + [[cx, cy]]
     elif text == '2' or text == 'kmeans':
         objL = objL + new_k
     elif text == '3' or text == 'iris':
@@ -286,7 +298,7 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
         moveX, moveY = np.max(sheepLoc[-2], axis = 0) - np.max(sheepLoc[-1], axis = 0)
         cropXMax = int(np.floor(cropXMax - moveX))
         cropYMax = int(np.floor(cropYMax - moveY))
-    
+
     fullCropped = np.copy(full)[cropY:cropYMax, cropX:cropXMax, :]
     cropVector = [cropX, cropY, cropXMax, cropYMax]
     return (fullCropped, cropVector)
@@ -304,12 +316,12 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
     elif frameID > 6:
         minPixels = 10
         oneSheepPixels = 0.7*250
-        
+
         x_r =  np.arange(cropX,  cropXMax)
         y_r =  np.arange(cropY,  cropYMax)
         xx, yy =  np.meshgrid(x_r, y_r)
         z =  []
-        s_x, s_y = [3, 3]
+        s_x, s_y = [2.5, 2.5]
         if frameID == 18:
             pred_Objects = pred_Objects[:-1]
         for point in pred_Objects:
