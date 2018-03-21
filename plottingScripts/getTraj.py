@@ -14,12 +14,12 @@ sheep =  np.array(sheep.tolist())
 while len(sheep[-1]) != len(sheep[0]):
 	sheep = np.array(sheep[:-1])
 N = np.shape(sheep)[1]
-S = 30
+S = 0
 F = -1
 
 colors = [ cm.prism(x) for x in np.linspace(0., 1., N)]
 for j in range(N):
-    plt.plot(sheep[S:F,j,0], sheep[S:F,j,1], color = colors[j], lw = 1)
+    plt.plot(np.convolve(sheep[S:F,j,0], np.ones((5,))/5, mode='valid'), np.convolve(sheep[S:F,j,1], np.ones((5,))/5, mode='valid'), color = colors[j], lw = 1)
 
 plt.axes().set_aspect('equal')
 plt.gca().invert_yaxis()

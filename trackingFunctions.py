@@ -285,17 +285,17 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     if frameID < 2:
         cropVector = cropVector
     elif frameID < 50:
-        moveX, moveY = np.min(sheepLoc[-2], axis = 0) - np.min(sheepLoc[-1], axis = 0)
+        moveX, moveY = np.min(sheepLoc[frameID-2], axis = 0) - np.min(sheepLoc[frameID-1], axis = 0)
         cropX = int(np.floor(cropX + moveX))
         cropY = int(np.floor(cropY + moveY))
-        moveX, moveY = np.max(sheepLoc[-2], axis = 0) - np.max(sheepLoc[-1], axis = 0)
+        moveX, moveY = np.max(sheepLoc[frameID-2], axis = 0) - np.max(sheepLoc[frameID-1], axis = 0)
         cropXMax = int(np.floor(cropXMax - moveX))
         cropYMax = 2028
     else:
-        moveX, moveY = np.min(sheepLoc[-2], axis = 0) - np.min(sheepLoc[-1], axis = 0)
+        moveX, moveY = np.min(sheepLoc[frameID-2], axis = 0) - np.min(sheepLoc[frameID-1], axis = 0)
         cropX = int(np.floor(cropX - moveX))
         cropY = int(np.floor(cropY - moveY))
-        moveX, moveY = np.max(sheepLoc[-2], axis = 0) - np.max(sheepLoc[-1], axis = 0)
+        moveX, moveY = np.max(sheepLoc[frameID-2], axis = 0) - np.max(sheepLoc[frameID-1], axis = 0)
         cropXMax = int(np.floor(cropXMax - moveX))
         cropYMax = int(np.floor(cropYMax - moveY))
 
@@ -321,7 +321,10 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         y_r =  np.arange(cropY,  cropYMax)
         xx, yy =  np.meshgrid(x_r, y_r)
         z =  []
-        s_x, s_y = [2.5, 2.5]
+        if frameID <= 40:
+            s_x, s_y = [2.8, 2.8]
+        else:
+            s_x, s_y = [2.5, 2.5]
         if frameID == 18:
             pred_Objects = pred_Objects[:-1]
         for point in pred_Objects:

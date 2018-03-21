@@ -41,7 +41,7 @@ else:
 plot = 's'
 darkTolerance = 173.5
 sizeOfObject = 60
-restart = 40
+restart = 0
 
 sheepLocations = []
 sheepVelocity = []
@@ -56,6 +56,8 @@ print 'You have', length, 'frames', videoLocation
 if restart > 0:
     sheepLocations, cropVector = np.load('loc'+str(restart)+'.npy')
     sheepLocations =  map(np.array,  sheepLocations)
+    sheepVelocity = np.load('vel'+str(restart)+'.npy')
+    sheepVelocity =  map(np.array, sheepVelocity)
     while(frameID <= restart):
         ret, frame = cap.read()
         print frameID
@@ -63,7 +65,7 @@ if restart > 0:
     N = len(sheepLocations[0])
 
 
-while(frameID <= 50):
+while(frameID <= 100):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -219,7 +221,7 @@ while(frameID <= 50):
 
                     if k == 1:
                         objectLocations += [[cX, cY]]
-                        assignmentVec += assignSheep([cX, cY], distImg, Ids)
+                        assignmentVec += assignSheep([cX, cY], distImg, Ids, centre=[cX, cY])
                     elif k > 1:
                         pred_objects[:,0] -= cropX
                         pred_objects[:,1] -= cropY
@@ -246,14 +248,14 @@ while(frameID <= 50):
 
                             if mean_C_i < mean_C_k:
                                 objectLocations += new_objects_i
-                                assignmentVec += assignSheep(new_objects_i, distImg, Ids)
+                                assignmentVec += assignSheep(new_objects_i, distImg, Ids, centre=[cX,  cY])
                             else:
                                 objectLocations += new_objects_K
-                                assignmentVec += assignSheep(new_objects_K, distImg, Ids)
+                                assignmentVec += assignSheep(new_objects_K, distImg, Ids, centre=[cX,  cY])
 
                         else:
                             objectLocations += new_objects_K
-                            assignmentVec += assignSheep(new_objects_K, distImg, Ids)
+                            assignmentVec += assignSheep(new_objects_K, distImg, Ids, centre=[cX,  cY])
 
 
 
@@ -308,6 +310,7 @@ while(frameID <= 50):
 
         if np.mod(frameID,50) == 0:
             np.save('loc'+str(frameID), (np.array(sheepLocations), cropVector))
+            np.save('vel'+str(frameID), np.array(sheepVelocity))
 
         frameID += 1
 
@@ -315,6 +318,7 @@ cap.release()
 
 
 np.save('locfull.npy', np.array(sheepLocations))
+np.save('velfull.npy', np.array(sheepVelocity))
 plt.close()
 
 if dell == True:
