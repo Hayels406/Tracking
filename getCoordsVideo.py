@@ -33,7 +33,7 @@ if os.getcwd().rfind('Uni') > 0:
 elif os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
     save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
-else:
+else:#Kiel
     videoLocation = '/data/b1033128/Videos/throughFenceRL.mp4'
     save = '/data/b1033128/Tracking/throughFenceRL/'
     dell = False
@@ -53,6 +53,15 @@ cap = cv2.VideoCapture(videoLocation)
 length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 print 'You have', length, 'frames', videoLocation
 
+if (videoLocation.rfind('data') > 0) and (videoLocation.rfind('throughFenceRL') > 0):
+    print 'Skipping first 15 frames'
+    while(frameID <= 15):
+        ret, frame = cap.read()
+        frameID += 1
+
+    if frameID > 0:
+        frameID = 0
+
 if restart > 0:
     sheepLocations, cropVector = np.load('loc'+str(restart)+'.npy')
     sheepLocations =  map(np.array,  sheepLocations)
@@ -65,7 +74,7 @@ if restart > 0:
     N = len(sheepLocations[0])
 
 
-while(frameID <= 100):
+while(frameID <= 10):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -73,7 +82,7 @@ while(frameID <= 100):
         full = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
         fullCropped, cropVector = movingCrop(frameID, full, sheepLocations, cropVector)
         cropX, cropY, cropXMax, cropYMax = cropVector
-        grey = fullCropped[:,:,2] #extract blue channel
+        grey = np.copy(fullCropped[:,:,2]) #extract blue channel
 
         grey[grey < darkTolerance] = 0.0
         grey[grey > darkTolerance+10.] = 255.
@@ -117,7 +126,7 @@ while(frameID <= 100):
             labelMask[labels == label] = 1
 
             numPixels = labelPixels[label]
-            
+
             # if the number of pixels in the component is sufficiently
             # large, then add it to our mask of "large blobs"
 
@@ -142,7 +151,7 @@ while(frameID <= 100):
                         if num_new_objects_i == 1:
                             check = 'Off'
                             objectLocations += new_objects_K
-                        
+
                         elif num_new_objects_K == 1:
                             check = 'Off'
                             objectLocations += new_objects_i
@@ -150,7 +159,7 @@ while(frameID <= 100):
                         elif num_new_objects_K == num_new_objects_i:
                             C = cdist(new_objects_i, new_objects_K)
                             row_ind, assignment = linear_sum_assignment(C)
-                            av_dist = C[row_ind, assignment].sum()/num_new_objects_i        
+                            av_dist = C[row_ind, assignment].sum()/num_new_objects_i
 
                             if av_dist < 3.5:
                                 check = 'Off'
@@ -179,17 +188,17 @@ while(frameID <= 100):
                         if num_new_objects_K == num_new_objects_i:
                             C = cdist(new_objects_i, new_objects_K)
                             row_ind, assignment = linear_sum_assignment(C)
-                            av_dist = C[row_ind, assignment].sum()/num_new_objects_i        
+                            av_dist = C[row_ind, assignment].sum()/num_new_objects_i
 
                             if av_dist < 3.5:
                                 check = 'Off'
                                 objectLocations += new_objects_K
-                                
+
 
 
 
                         else:
-                            check = 'Off' 
+                            check = 'Off'
                             objectLocations += new_objects_K
 
                         if check == 'On':
@@ -260,7 +269,7 @@ while(frameID <= 100):
 
 
 
-            
+
         objectLocations = np.array(objectLocations)
 
         objectLocations[:, 0] += cropX
@@ -272,8 +281,8 @@ while(frameID <= 100):
         elif frameID == 16:
             N += 1
         elif frameID == 17:
-            N += 2 
-        
+            N += 2
+
         if (frameID > 0) & (frameID <= 6):
             finalDist = cdist(sheepLocations[-1], objectLocations)
             _, assignmentVec = linear_sum_assignment(finalDist)
@@ -282,7 +291,7 @@ while(frameID <= 100):
 
         l = len(finalLocations)
         if plot != 'N':
-            plt.close()
+            plt.close('all')
             plt.imshow(fullCropped)
             plt.scatter(np.array(objectLocations)[:, 0]-cropX, np.array(objectLocations)[:, 1]-cropY, s = 1.)
             plt.gca().set_aspect('equal')
@@ -309,17 +318,17 @@ while(frameID <= 100):
 
 
         if np.mod(frameID,50) == 0:
-            np.save('loc'+str(frameID), (np.array(sheepLocations), cropVector))
-            np.save('vel'+str(frameID), np.array(sheepVelocity))
+            np.save(save+'loc'+str(frameID), (np.array(sheepLocations), cropVector))
+            np.save(save+'vel'+str(frameID), np.array(sheepVelocity))
 
         frameID += 1
 
 cap.release()
 
 
-np.save('locfull.npy', np.array(sheepLocations))
-np.save('velfull.npy', np.array(sheepVelocity))
-plt.close()
+np.save(save+'locfull.npy', np.array(sheepLocations))
+np.save(save+'velfull.npy', np.array(sheepVelocity))
+plt.close('all')
 
 if dell == True:
     if brk == False:
