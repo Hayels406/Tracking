@@ -11,6 +11,33 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from collections import Counter
 
+def movingCropQuad(frameID, fullIm, quadLoc, cropV):
+    cropX, cropY, cropXMax, cropYMax = cropV
+
+    if frameID > 2:
+        moveX, moveY = np.array(quadLoc)[-2] - np.array(quadLoc)[-1]
+        cropX = int(cropX - moveX)
+        cropY = int(cropY - moveY)
+        cropXMax = int(cropXMax - moveX)
+        cropYMax = int(cropYMax - moveY)
+
+        cropV = [cropX, cropY, cropXMax, cropYMax]
+
+    fullCropped = np.copy(fullIm)[cropY:cropYMax, cropX:cropXMax, :]
+    return (fullCropped, cropV)
+
+def getQuad(fullImg, quadLoc, cropV, darkTolerance, frameId):
+    fullCropped, cropV = movingCropQuad(frameId, np.copy(fullImg), quadLoc, cropV)
+    grey = np.copy(fullCropped)[:,:,0] - np.copy(fullCropped)[:,:,1]
+    binary = np.copy(grey)
+    binary[binary < darkTolerance] = 0
+    binary[binary > darkTolerance] = 255
+
+    quad = np.array(np.where(binary == 0)).mean(axis = 1)[::-1]
+
+
+    quadLoc += [(quad+[cropV[0],cropV[1]]).tolist()]
+    return quadLoc, cropV
 
 def getPredictedID(pred, mask, cropV):
     cropX,  cropY, _, _ = cropV
@@ -293,11 +320,12 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
         cropYMax = 2028
     else:
         moveX, moveY = np.min(sheepLoc[frameID-2], axis = 0) - np.min(sheepLoc[frameID-1], axis = 0)
-        cropX = int(np.floor(cropX - moveX))
-        cropY = int(np.floor(cropY - moveY))
+        cropX = min(int(np.floor(cropX - moveX)), int(np.min(sheepLoc[frameID-1], axis = 0)[0] - 50))
+        cropY = min(int(np.floor(cropY - moveY)), int(np.min(sheepLoc[frameID-1], axis = 0)[1] - 50))
+
         moveX, moveY = np.max(sheepLoc[frameID-2], axis = 0) - np.max(sheepLoc[frameID-1], axis = 0)
-        cropXMax = int(np.floor(cropXMax - moveX))
-        cropYMax = int(np.floor(cropYMax - moveY))
+        cropXMax = max(int(np.floor(cropXMax - moveX)), int(np.max(sheepLoc[frameID - 1], axis = 0)[0] + 50))
+        cropYMax = min(max(int(np.floor(cropYMax - moveY)), int(np.max(sheepLoc[frameID - 1], axis = 0)[1] + 50)), 2028)
 
     fullCropped = np.copy(full)[cropY:cropYMax, cropX:cropXMax, :]
     cropVector = [cropX, cropY, cropXMax, cropYMax]
@@ -323,8 +351,10 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         z =  []
         if frameID <= 40:
             s_x, s_y = [2.8, 2.8]
-        else:
+        elif frameID <= 100:
             s_x, s_y = [2.5, 2.5]
+        else:
+            s_x, s_y = [2.2, 2.2]
         if frameID == 18:
             pred_Objects = pred_Objects[:-1]
         for point in pred_Objects:

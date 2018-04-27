@@ -4,8 +4,22 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib import rc
 
-sheep = np.load('locfull.npy')
-vel = np.load('velfull.npy')
+if os.getcwd().rfind('Uni') > 0:
+    videoLocation = '/home/b1033128/Documents/throughFenceRL.mp4'
+    save = '/home/b1033128/Documents/throughFenceRL/'
+    dell = True
+    brk = False
+elif os.getcwd().rfind('hayley') > 0:
+    videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
+    save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
+else:#Kiel
+    videoLocation = '/data/b1033128/Videos/throughFenceRL.mp4'
+    save = '/data/b1033128/Tracking/throughFenceRL/'
+    dell = False
+
+
+sheep = np.load(save+'loc50.npy')
+vel = np.load(save+'vel50.npy')
 save = sys.argv[1] == 'True'
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})

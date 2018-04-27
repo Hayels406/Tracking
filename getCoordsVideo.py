@@ -1,10 +1,14 @@
 import numpy as np
 import cv2
 import os
+import sys
 from skimage import measure
 import scipy.ndimage as ndimage
 from imutils import contours
 import imutils as im
+if len(sys.argv) == 1:
+    import matplotlib as mpl
+    mpl.use('agg')
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
@@ -12,6 +16,7 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from collections import Counter
 import copy
+from glob import glob
 
 from trackingFunctions import kmeansClustering
 from trackingFunctions import iris
@@ -24,15 +29,16 @@ from trackingFunctions import organiseLocations
 from trackingFunctions import doCheck
 from trackingFunctions import getPreviousID
 from trackingFunctions import getPredictedID
+from trackingFunctions import getQuad
 
-if os.getcwd().rfind('Uni') > 0:
+if os.getcwd().rfind('hayley') > 0:
+    videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
+    save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
+elif os.getcwd().rfind('Uni') > 0:
     videoLocation = '/home/b1033128/Documents/throughFenceRL.mp4'
     save = '/home/b1033128/Documents/throughFenceRL/'
     dell = True
     brk = False
-elif os.getcwd().rfind('hayley') > 0:
-    videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
-    save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
 else:#Kiel
     videoLocation = '/data/b1033128/Videos/throughFenceRL.mp4'
     save = '/data/b1033128/Tracking/throughFenceRL/'
@@ -40,14 +46,21 @@ else:#Kiel
 
 plot = 's'
 darkTolerance = 173.5
+quadDark = 100.
 sizeOfObject = 60
 restart = 0
 
 sheepLocations = []
 sheepVelocity = []
+quadLocation = []
 frameID = 0
 cropVector = [1000,1000,2000,2028]
+quadCrop   = [2000,1500,2200,1700]
 
+if len(glob(save+'init')) == 1:
+    initFile = np.loadtxt(save+'init')
+    initLoc = 0
+    init = True
 
 cap = cv2.VideoCapture(videoLocation)
 length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -63,10 +76,11 @@ if (videoLocation.rfind('data') > 0) and (videoLocation.rfind('throughFenceRL') 
         frameID = 0
 
 if restart > 0:
-    sheepLocations, cropVector = np.load('loc'+str(restart)+'.npy')
+    sheepLocations, cropVector = np.load(save+'loc'+str(restart)+'.npy')
     sheepLocations =  map(np.array,  sheepLocations)
-    sheepVelocity = np.load('vel'+str(restart)+'.npy')
+    sheepVelocity = np.load(save+'vel'+str(restart)+'.npy')
     sheepVelocity =  map(np.array, sheepVelocity)
+    quadLocation = np.load(save+'quad'+str(restart)+'.npy')
     while(frameID <= restart):
         ret, frame = cap.read()
         print frameID
@@ -74,12 +88,15 @@ if restart > 0:
     N = len(sheepLocations[0])
 
 
-while(frameID <= 10):
+while(frameID <= 200):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
         assignmentVec = []
         full = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+
+        quadLocation, quadCrop = getQuad(full, quadLocation, quadCrop, quadDark, frameID)
+
         fullCropped, cropVector = movingCrop(frameID, full, sheepLocations, cropVector)
         cropX, cropY, cropXMax, cropYMax = cropVector
         grey = np.copy(fullCropped[:,:,2]) #extract blue channel
@@ -166,7 +183,14 @@ while(frameID <= 10):
                                 objectLocations += new_objects_K
 
                         if check == 'On':
-                            objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
+                            if init == True:
+                                if initFile[initLoc] == 2:
+                                    objectLocations += new_objects_K
+                                elif initFile[initLoc] == 3:
+                                    objectLocations += new_objects_i
+                                initLoc += 1
+                            else:
+                                objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
 
                 elif frameID <= 6:
                     if numPixels < oneSheepPixels:
@@ -202,7 +226,14 @@ while(frameID <= 10):
                             objectLocations += new_objects_K
 
                         if check == 'On':
-                            objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
+                            if init == True:
+                                if initFile[initLoc] == 2:
+                                    objectLocations += new_objects_K
+                                elif initFile[initLoc] == 3:
+                                    objectLocations += new_objects_i
+                                initLoc += 1
+                            else:
+                                objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
 
 
                 else:
@@ -320,6 +351,7 @@ while(frameID <= 10):
         if np.mod(frameID,50) == 0:
             np.save(save+'loc'+str(frameID), (np.array(sheepLocations), cropVector))
             np.save(save+'vel'+str(frameID), np.array(sheepVelocity))
+            np.save(save+'quad'+str(frameID), np.array(quadLocation))
 
         frameID += 1
 
@@ -328,6 +360,7 @@ cap.release()
 
 np.save(save+'locfull.npy', np.array(sheepLocations))
 np.save(save+'velfull.npy', np.array(sheepVelocity))
+np.save(save+'quadfull.npy', np.array(quadLocation))
 plt.close('all')
 
 if dell == True:
