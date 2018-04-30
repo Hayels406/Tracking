@@ -14,11 +14,13 @@ from collections import Counter
 import myKalman as mKF
 
 def predictKalmanIndv(loc):
-    x,p,A = mKF.kalman(loc)
-    return np.transpose((A*x[-1])[:2]).tolist()[0]
+    x,nextX,nextP = mKF.kalman(loc)
+    return (np.transpose(nextX[:2]).tolist()[0], nextP)
 
 def predictKalman(locs):
-    return np.array(map(lambda i:predictKalmanIndv(locs[:,i,:]), range(144)))
+    locations =  np.array(map(lambda i:predictKalmanIndv(locs[:,i,:])[0], range(np.shape(locs)[1])))
+    distributions = np.array(map(lambda i:predictKalmanIndv(locs[:,i,:])[1], range(np.shape(locs)[1])))
+    return locations, distributions
 
 def movingCropQuad(frameID, fullIm, quadLoc, cropV):
     cropX, cropY, cropXMax, cropYMax = cropV
@@ -49,7 +51,7 @@ def getQuad(fullImg, quadLoc, cropV, darkTolerance, frameId):
     return quadLoc, cropV
 
 def getPredictedID(pred, mask, cropV):
-    cropX,  cropY, _, _ = cropV
+    cropX,  cropY, cropXMax, cropYMax = cropV
     objects = pred.tolist()
     points =  np.array(map(int,  np.floor(np.array(objects) - np.array([cropX, cropY])).flatten()))
     points =  (points.reshape(len(points)/2,  2)).tolist()
@@ -57,12 +59,44 @@ def getPredictedID(pred, mask, cropV):
     ids = []
     for i in range(len(points)):
         point = points[i]
+        if point[1] >= cropYMax - cropY:
+            point[1] = cropYMax - cropY - 1
+
+        if point[0] >= cropXMax - cropX:
+            point[0] = cropXMax - cropX - 1
+
         if mask[point[1],point[0]] == 1:
             containedPoints += [point]
             ids += [i]
     if len(np.array(containedPoints)) == 0:
         points =  np.array(map(int,  np.ceil(np.array(objects) - np.array([cropX, cropY])).flatten()))
         points =  (points.reshape(len(points)/2,  2)).tolist()
+        containedPoints = []
+        ids = []
+        for i in range(len(points)):
+            point = points[i]
+            if mask[point[1],point[0]] == 1:
+                containedPoints += [point]
+                ids += [i]
+
+    if len(np.array(containedPoints)) == 0:
+        pointsX =  np.array(map(int,  np.floor(np.array(objects)[:,0] - np.array([cropX])).flatten()))
+        pointsY =  np.array(map(int,  np.ceil(np.array(objects)[:,1] - np.array([cropY])).flatten()))
+        points =  np.append(pointsX.reshape(len(pointsX), 1), pointsY.reshape(len(pointsY),1), axis= 1).tolist()
+
+        containedPoints = []
+        ids = []
+        for i in range(len(points)):
+            point = points[i]
+            if mask[point[1],point[0]] == 1:
+                containedPoints += [point]
+                ids += [i]
+
+    if len(np.array(containedPoints)) == 0:
+        pointsX =  np.array(map(int,  np.ceil(np.array(objects)[:,0] - np.array([cropX])).flatten()))
+        pointsY =  np.array(map(int,  np.floor(np.array(objects)[:,1] - np.array([cropY])).flatten()))
+        points =  np.append(pointsX.reshape(len(pointsX), 1), pointsY.reshape(len(pointsY),1), axis= 1).tolist()
+
         containedPoints = []
         ids = []
         for i in range(len(points)):

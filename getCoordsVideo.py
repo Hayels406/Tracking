@@ -30,6 +30,7 @@ from trackingFunctions import doCheck
 from trackingFunctions import getPreviousID
 from trackingFunctions import getPredictedID
 from trackingFunctions import getQuad
+from trackingFunctions import predictKalman
 
 if os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
@@ -61,6 +62,8 @@ if len(glob(save+'init')) == 1:
     initFile = np.loadtxt(save+'init')
     initLoc = 0
     init = True
+else:
+    init = False
 
 cap = cv2.VideoCapture(videoLocation)
 length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -88,7 +91,7 @@ if restart > 0:
     N = len(sheepLocations[0])
 
 
-while(frameID <= 200):
+while(frameID <= 10):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -109,8 +112,8 @@ while(frameID <= 200):
         maxfilter = ndimage.maximum_filter(img, size=2)
 
         if frameID > 6:
-            vel = findVel(sheepLocations)
-            prediction_Objects = predictEuler(np.array(sheepLocations), vel)
+            #vel = findVel(sheepLocations)
+            prediction_Objects, prediction_Distributions = predictKalman(np.array(sheepLocations))
         else:
             vel = []
             prediction_Objects = []

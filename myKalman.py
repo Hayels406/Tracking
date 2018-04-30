@@ -82,7 +82,7 @@ def kalman(z):
         x.append(xFilteredFunc(xPrime, kt, np.transpose(np.matrix(zt)), H))
         p.append(pFilteredFunc(pPrime, kt, H))
 
-    return (x, p, A)
+    return (x, xPrimeFunc(A,x[-1]), pPrimeFunc(A,p[-1],Q))
 
 #z = np.array([0.39, 0.50, 0.48, 0.29, 0.25, 0.32, 0.34, 0.48, 0.41, 0.45])
 #z = sheep[:,-10,:]
