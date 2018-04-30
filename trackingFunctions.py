@@ -392,6 +392,7 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         y_r =  np.arange(cropY,  cropYMax)
         xx, yy =  np.meshgrid(x_r, y_r)
         z =  []
+        rho = 0
 
         if frameID <= 40:
             s_x, s_y = [2.8, 2.8]
@@ -406,23 +407,24 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         for point in pred_Objects:
             m_x = point[0]
             m_y = point[1]
-            z += [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
+            z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
+
         if (frameID == 16):
             m_x = 150 + cropX
             m_y = cropYMax
             s_x, s_y = [6, 6]
-            extra = [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
+            extra = [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
             filtered = (np.array(z+extra).sum(axis = 0))*np.copy(maxF)
         elif (frameID == 18):
             m_x = 140 + cropX
             m_y = cropYMax
             s_x, s_y = [2, 2]
-            z += [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
+            z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
 
             m_x = 170 + cropX
             m_y = cropYMax
             s_x, s_y = [2, 2]
-            z += [(1/(2*np.pi*s_x*s_y))*np.exp(-((xx-m_x)**2/(2*s_x**2))-((yy-m_y)**2/(2*s_y**2)))]
+            z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
             filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)
         else:
             filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)
