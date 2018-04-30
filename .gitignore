@@ -4,3 +4,4 @@
 .DS*
 *BROKE*
 *.mp4
+*.pyc

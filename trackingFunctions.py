@@ -11,6 +11,15 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from collections import Counter
 
+import myKalman as mKF
+
+def predictKalmanIndv(loc):
+    x,p,A = mKF.kalman(loc)
+    return np.transpose((A*x[-1])[:2]).tolist()[0]
+
+def predictKalman(locs):
+    return np.array(map(lambda i:predictKalmanIndv(locs[:,i,:]), range(144)))
+
 def movingCropQuad(frameID, fullIm, quadLoc, cropV):
     cropX, cropY, cropXMax, cropYMax = cropV
 
@@ -349,14 +358,17 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         y_r =  np.arange(cropY,  cropYMax)
         xx, yy =  np.meshgrid(x_r, y_r)
         z =  []
+
         if frameID <= 40:
             s_x, s_y = [2.8, 2.8]
         elif frameID <= 100:
             s_x, s_y = [2.5, 2.5]
         else:
             s_x, s_y = [2.2, 2.2]
+
         if frameID == 18:
             pred_Objects = pred_Objects[:-1]
+
         for point in pred_Objects:
             m_x = point[0]
             m_y = point[1]
