@@ -50,7 +50,7 @@ def getQuad(fullImg, quadLoc, cropV, darkTolerance, frameId):
     quadLoc += [(quad+[cropV[0],cropV[1]]).tolist()]
     return quadLoc, cropV
 
-def getPredictedID(pred, mask, cropV):
+def getPredictedID(pred, mask, cropV, rect):
     cropX,  cropY, cropXMax, cropYMax = cropV
     objects = pred.tolist()
     points =  np.array(map(int,  np.floor(np.array(objects) - np.array([cropX, cropY])).flatten()))
@@ -104,6 +104,13 @@ def getPredictedID(pred, mask, cropV):
             if mask[point[1],point[0]] == 1:
                 containedPoints += [point]
                 ids += [i]
+    if len(np.array(containedPoints)) == 0:
+        x, y, w, h = rect
+        ids = getPreviousID(pred, x, y, w, h, cropX, cropY, 0)
+        containedPoints = pred[ids]
+
+        ids = ids.tolist()
+        containedPoints = containedPoints.tolist()
 
     return np.array(containedPoints), ids
 
@@ -374,7 +381,7 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     cropVector = [cropX, cropY, cropXMax, cropYMax]
     return (fullCropped, cropVector)
 
-def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
+def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector, maxF):
     cropX, cropY, cropXMax, cropYMax = cropVector
     if frameID <= 6:
         minPixels = sizeOfObject
@@ -404,9 +411,12 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
         if frameID == 18:
             pred_Objects = pred_Objects[:-1]
 
-        for point in pred_Objects:
+        for i in range(len(pred_Objects)):
+            point = pred_Objects[i]
+            x2, rxy, _, y2 = np.array(pred_Dist[i][:2,:2]).flatten()
             m_x = point[0]
             m_y = point[1]
+            rho = rxy/np.sqrt(x2*y2)
             z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
 
         if (frameID == 16):
@@ -419,6 +429,7 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, cropVector, maxF):
             m_x = 140 + cropX
             m_y = cropYMax
             s_x, s_y = [2, 2]
+            rho = 0
             z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
 
             m_x = 170 + cropX

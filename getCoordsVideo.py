@@ -6,9 +6,10 @@ from skimage import measure
 import scipy.ndimage as ndimage
 from imutils import contours
 import imutils as im
+import matplotlib as mpl
 if len(sys.argv) == 1:
-    import matplotlib as mpl
     mpl.use('agg')
+
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
@@ -91,7 +92,7 @@ if restart > 0:
     N = len(sheepLocations[0])
 
 
-while(frameID <= 10):
+while(frameID <= 300):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -117,8 +118,9 @@ while(frameID <= 10):
         else:
             vel = []
             prediction_Objects = []
+            prediction_Distributions = []
 
-        filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, cropVector, maxfilter)
+        filtered, minPixels, oneSheepPixels, distImg = createBinaryImage(frameID, sizeOfObject, prediction_Objects, prediction_Distributions, cropVector, maxfilter)
 
         if plot != 'N':
             plt.imshow(filtered, cmap = 'gray')
@@ -240,7 +242,7 @@ while(frameID <= 10):
 
 
                 else:
-                    pred_objects, Ids = getPredictedID(prediction_Objects, np.copy(labelMask),  cropVector)
+                    pred_objects, Ids = getPredictedID(prediction_Objects, np.copy(labelMask),  cropVector, rectangle)
                     k = len(pred_objects)
                     check = 'Off'
 
