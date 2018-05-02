@@ -222,18 +222,20 @@ def iris(miniImg, X, Y):
     iris = np.uint8(iris*255./np.max(iris))
 
     threshold= 0.3*np.max(iris)
-    ret, thresh = cv2.threshold(iris,threshold,255,cv2.THRESH_BINARY)
+    _, thresh = cv2.threshold(iris,threshold,255,cv2.THRESH_BINARY)
 
     output = cv2.connectedComponentsWithStats(thresh, 8, cv2.CV_32S)
-    centroids = output[3]
+    centroids = output[3][output[2][:,-1] > 4]
     centroids = np.transpose(centroids)
 
-    new_objects = np.copy(centroids[:,1:])
+    new_objects = np.copy(centroids[:,1:])#remove element 0 cost its the background!
     new_objects[0,:] += X
     new_objects[1,:] += Y
-    new_objects = np.transpose(new_objects).tolist()#remove element 0 cost its the background!
+    new_objects = np.transpose(new_objects).tolist()
     final_objects = []
-    for i in range(np.shape(new_objects)[0]):
+    sCov = []
+    output[1][output[1] == np.array(range(output[0]))[output[2][:,-1] <= 4]] = 0
+    for i in range(len(np.unique(output[1])[1:])):
         if new_objects[i][0] < 3 + X:
             continue
         elif new_objects[i][0] > np.shape(miniImg)[1] - 3 + X:
@@ -244,10 +246,15 @@ def iris(miniImg, X, Y):
             continue
         else:
             final_objects += [np.array(new_objects)[i].tolist()]
+            cov = np.cov(np.transpose(np.where(output[1] == np.unique(output[1])[1:][i])), rowvar=False).flatten()[[0,1,-1]].tolist()
+            s_x = np.sqrt(cov[2])
+            s_y = np.sqrt(cov[0])
+            rho = cov[1]/(s_x*s_y)
+            sCov += [[s_x, s_y, rho]]
 
-    return final_objects
+    return final_objects, sCov, iris
 
-def kmeansClustering(miniImg, numberPixels, X, Y, previous):
+def kmeansClustering(miniImg, miniImg2, numberPixels, X, Y, previous):
     threshold= 0.85*np.max(miniImg)
     if previous == 0:
         plt.imshow(miniImg)
@@ -272,7 +279,8 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
 
         approxNumber =  np.where(av_score == np.max(av_score))[0][0] + 2
         if approxNumber < np.shape(np.transpose(np.where(miniImg > threshold)))[0] - 1:
-            clusterer = KMeans(n_clusters=approxNumber,random_state = 10).fit(np.transpose(np.where(miniImg > threshold)))
+            clusterer = KMeans(n_clusters=approxNumber,random_state = 10)
+            clusterer1 = clusterer.fit(np.transpose(np.where(miniImg > threshold)))
             cluster_centers = clusterer.cluster_centers_
 
             cluster_list = np.copy(cluster_centers)
@@ -285,8 +293,8 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
 
     else:
         clusterer = KMeans(n_clusters=previous,random_state = 10)
-        clusterer = clusterer.fit(np.transpose(np.where(miniImg > threshold)))
-        cluster_centers = clusterer.cluster_centers_
+        clusterer1 = clusterer.fit(np.transpose(np.where(miniImg > threshold)))
+        cluster_centers = clusterer1.cluster_centers_
         cluster_list = np.copy(cluster_centers)
         cluster_list[:,0] = cluster_centers[:,1] + X
         cluster_list[:,1] = cluster_centers[:,0] + Y
@@ -294,7 +302,28 @@ def kmeansClustering(miniImg, numberPixels, X, Y, previous):
 
         new_objects =  cluster_list.tolist()
 
-    return new_objects
+    sCov = []
+    miniImg2[miniImg2 < 0.5*np.max(miniImg2)] = 0
+    prediction = clusterer.predict(np.transpose(np.where(miniImg2 > 0)))
+    for value in np.unique(prediction):
+        s = np.transpose(np.where(miniImg2 > 0))[np.where(prediction == value)]
+        labelMask = np.zeros(miniImg2.shape, dtype='uint8')
+        for k in s:
+            labelMask[k[0], k[1]] = 1
+        output = cv2.connectedComponentsWithStats(labelMask, 4, cv2.CV_32S)
+        for i in range(output[0]):
+            if output[2][i,-1] <= 4:
+                labelMask[output[1] == i] = 0
+        cov = np.cov(np.transpose(np.where(labelMask > 0)), rowvar=False).flatten()[[0,1,-1]].tolist()
+        s_x = np.sqrt(cov[2])
+        s_y = np.sqrt(cov[0])
+        rho = cov[1]/(s_x*s_y)
+        sCov += [[s_x, s_y, rho]]
+
+
+
+
+    return new_objects, sCov
 
 def findVel(locs):
     vel = (locs[-1] - locs[-6])/5
@@ -446,3 +475,13 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector
 
 
     return (filtered, minPixels, oneSheepPixels, z)
+
+def bivariateNormal(xx,yy,m_x, m_y, s_x, s_y, rho):
+    return (1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))
+
+
+def plotSheepCov(sCov, objectLoc, cropx, cropy):
+    for i in range(len(sCov)):
+        xx, yy = np.meshgrid(np.arange(objectLoc[i][0]-30-cropx,objectLoc[i][0]+30-cropx,0.1), np.arange(objectLoc[i][1]-30-cropy,objectLoc[i][1]+30-cropy, 0.1))
+        z = bivariateNormal(xx, yy, objectLoc[i][0]-cropx, objectLoc[i][1]-cropy, sCov[i][0], sCov[i][1], sCov[i][2])
+        plt.contour(xx,yy,z,cmap='plasma')

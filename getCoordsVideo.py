@@ -32,6 +32,7 @@ from trackingFunctions import getPreviousID
 from trackingFunctions import getPredictedID
 from trackingFunctions import getQuad
 from trackingFunctions import predictKalman
+from trackingFunctions import bivariateNormal
 
 if os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
@@ -55,6 +56,7 @@ restart = 0
 sheepLocations = []
 sheepVelocity = []
 quadLocation = []
+sheepCov = []
 frameID = 0
 cropVector = [1000,1000,2000,2028]
 quadCrop   = [2000,1500,2200,1700]
@@ -92,7 +94,7 @@ if restart > 0:
     N = len(sheepLocations[0])
 
 
-while(frameID <= 300):
+while(frameID <= 0):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
@@ -105,10 +107,11 @@ while(frameID <= 300):
         cropX, cropY, cropXMax, cropYMax = cropVector
         grey = np.copy(fullCropped[:,:,2]) #extract blue channel
 
-        grey[grey < darkTolerance] = 0.0
-        grey[grey > darkTolerance+10.] = 255.
+        grey2 = np.copy(grey)
+        grey2[grey2 < darkTolerance] = 0.0
+        grey2[grey2 > darkTolerance+10.] = 255.
 
-        img = cv2.GaussianBlur(grey,(5,5),2)
+        img = cv2.GaussianBlur(grey2,(5,5),2)
 
         maxfilter = ndimage.maximum_filter(img, size=2)
 
@@ -160,42 +163,59 @@ while(frameID <= 300):
                 if frameID == 0:
                     if numPixels < oneSheepPixels:
                         objectLocations += [[cX, cY]]
+                        cov = np.cov(np.transpose(np.array(np.where(labelMask > 0)))[:,::-1], rowvar = False).flatten()[[0,1,-1]].tolist()
+                        s_x = np.sqrt(cov[0])
+                        s_y = np.sqrt(cov[2])
+                        rho = cov[1]/(s_x*s_y)
+                        sheepCov += [[s_x, s_y, rho]]
+
                     else:
                         miniImage = img[y: y + h, x: x + w]
+                        miniGrey = grey[y: y + h, x: x + w]
+
                         k = -1
 
-                        new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = k)
-                        new_objects_i   = iris(miniImage, x, y)
+                        new_objects_k, sCov_k = kmeansClustering(miniImage, miniGrey, numPixels, x, y, previous = k)
+                        new_objects_i, sCov_i, irisImg = iris(miniImage, x, y)
 
-                        num_new_objects_K = np.shape(new_objects_K)[0]
+                        num_new_objects_k = np.shape(new_objects_k)[0]
                         num_new_objects_i = np.shape(new_objects_i)[0]
 
                         if num_new_objects_i == 1:
                             check = 'Off'
-                            objectLocations += new_objects_K
+                            objectLocations += new_objects_k
+                            sheepCov += sCov_k
 
-                        elif num_new_objects_K == 1:
+                        elif num_new_objects_k == 1:
                             check = 'Off'
                             objectLocations += new_objects_i
+                            sheepCov += sCov_i
 
-                        elif num_new_objects_K == num_new_objects_i:
-                            C = cdist(new_objects_i, new_objects_K)
+                        elif num_new_objects_k == num_new_objects_i:
+                            C = cdist(new_objects_i, new_objects_k)
                             row_ind, assignment = linear_sum_assignment(C)
                             av_dist = C[row_ind, assignment].sum()/num_new_objects_i
 
                             if av_dist < 3.5:
                                 check = 'Off'
-                                objectLocations += new_objects_K
+                                objectLocations += new_objects_k
+                                sheepCov += sCov_k
 
                         if check == 'On':
                             if init == True:
                                 if initFile[initLoc] == 2:
-                                    objectLocations += new_objects_K
+                                    objectLocations += new_objects_k
+                                    sheepCov += sCov_k
                                 elif initFile[initLoc] == 3:
                                     objectLocations += new_objects_i
+                                    sheepCov += sCov_i
                                 initLoc += 1
                             else:
-                                objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
+                                objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_k, rectangle, k)
+                                if objectLocations[-1] == new_objects_k[-1]:
+                                    sheepCov += sCov_k
+                                elif objectLocations[-1] == new_objects_i[-1]:
+                                    sheepCov += sCov_i
 
                 elif frameID <= 6:
                     if numPixels < oneSheepPixels:
@@ -208,37 +228,37 @@ while(frameID <= 300):
                         Ids = getPreviousID(lastT, x, y, w, h, cropX, cropY, padding)
                         k = len(Ids)
 
-                        new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = k)
+                        new_objects_k = kmeansClustering(miniImage, numPixels, x, y, previous = k)
                         new_objects_i   = iris(miniImage, x, y)
 
-                        num_new_objects_K = np.shape(new_objects_K)[0]
+                        num_new_objects_k = np.shape(new_objects_k)[0]
                         num_new_objects_i = np.shape(new_objects_i)[0]
 
-                        if num_new_objects_K == num_new_objects_i:
-                            C = cdist(new_objects_i, new_objects_K)
+                        if num_new_objects_k == num_new_objects_i:
+                            C = cdist(new_objects_i, new_objects_k)
                             row_ind, assignment = linear_sum_assignment(C)
                             av_dist = C[row_ind, assignment].sum()/num_new_objects_i
 
                             if av_dist < 3.5:
                                 check = 'Off'
-                                objectLocations += new_objects_K
+                                objectLocations += new_objects_k
 
 
 
 
                         else:
                             check = 'Off'
-                            objectLocations += new_objects_K
+                            objectLocations += new_objects_k
 
                         if check == 'On':
                             if init == True:
                                 if initFile[initLoc] == 2:
-                                    objectLocations += new_objects_K
+                                    objectLocations += new_objects_k
                                 elif initFile[initLoc] == 3:
                                     objectLocations += new_objects_i
                                 initLoc += 1
                             else:
-                                objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_K, rectangle, k)
+                                objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_k, rectangle, k)
 
 
                 else:
@@ -276,31 +296,31 @@ while(frameID <= 300):
 
                         miniImage = labelImg[y: y + h, x: x + w]
 
-                        new_objects_K = kmeansClustering(miniImage, numPixels, x, y, previous = k)
+                        new_objects_k = kmeansClustering(miniImage, numPixels, x, y, previous = k)
                         new_objects_i   = iris(miniImage, x, y)
 
-                        num_new_objects_K = np.shape(new_objects_K)[0]
+                        num_new_objects_k = np.shape(new_objects_k)[0]
                         num_new_objects_i = np.shape(new_objects_i)[0]
 
-                        if num_new_objects_K == num_new_objects_i:
+                        if num_new_objects_k == num_new_objects_i:
                             C = cdist(new_objects_i, pred_objects)
                             row_ind, assignment = linear_sum_assignment(C)
                             mean_C_i = (C[row_ind,  assignment].sum())/num_new_objects_i
 
-                            C = cdist(new_objects_K, pred_objects)
+                            C = cdist(new_objects_k, pred_objects)
                             row_ind, assignment = linear_sum_assignment(C)
-                            mean_C_k = (C[row_ind,  assignment].sum())/num_new_objects_K
+                            mean_C_k = (C[row_ind,  assignment].sum())/num_new_objects_k
 
                             if mean_C_i < mean_C_k:
                                 objectLocations += new_objects_i
                                 assignmentVec += assignSheep(new_objects_i, distImg, Ids, centre=[cX,  cY])
                             else:
-                                objectLocations += new_objects_K
-                                assignmentVec += assignSheep(new_objects_K, distImg, Ids, centre=[cX,  cY])
+                                objectLocations += new_objects_k
+                                assignmentVec += assignSheep(new_objects_k, distImg, Ids, centre=[cX,  cY])
 
                         else:
-                            objectLocations += new_objects_K
-                            assignmentVec += assignSheep(new_objects_K, distImg, Ids, centre=[cX,  cY])
+                            objectLocations += new_objects_k
+                            assignmentVec += assignSheep(new_objects_k, distImg, Ids, centre=[cX,  cY])
 
 
 
