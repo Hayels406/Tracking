@@ -13,6 +13,8 @@ trajOut.mp4: locfull.npy
 
 trimImages: /data/b1033128/Tracking/throughFenceRL/0000.png
 	for a in [0-9]*.png; do convert -trim "$a" T"$a"; done
+	#for a in grey/*.pdf; do pdfcrop "$a" "$a"; done
+
 
 
 clean:

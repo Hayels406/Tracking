@@ -107,7 +107,7 @@ def getPredictedID(pred, mask, cropV, rect):
     if len(np.array(containedPoints)) == 0:
         x, y, w, h = rect
         ids = getPreviousID(pred, x, y, w, h, cropX, cropY, 0)
-        containedPoints = pred[ids]
+        containedPoints = pred[ids] - np.array([cropX, cropY])
 
         ids = ids.tolist()
         containedPoints = containedPoints.tolist()
@@ -234,7 +234,8 @@ def iris(miniImg, X, Y):
     new_objects = np.transpose(new_objects).tolist()
     final_objects = []
     sCov = []
-    output[1][output[1] == np.array(range(output[0]))[output[2][:,-1] <= 4]] = 0
+    for i in np.array(range(output[0]))[output[2][:,-1] <= 4]:
+        output[1][output[1] == i] = 0
     for i in range(len(np.unique(output[1])[1:])):
         if new_objects[i][0] < 3 + X:
             continue
@@ -252,7 +253,7 @@ def iris(miniImg, X, Y):
             rho = cov[1]/(s_x*s_y)
             sCov += [[s_x, s_y, rho]]
 
-    return final_objects, sCov, iris
+    return final_objects, sCov
 
 def kmeansClustering(miniImg, miniImg2, numberPixels, X, Y, previous):
     threshold= 0.85*np.max(miniImg)
@@ -292,7 +293,7 @@ def kmeansClustering(miniImg, miniImg2, numberPixels, X, Y, previous):
             new_objects = [[cX, cY]]
 
     else:
-        clusterer = KMeans(n_clusters=previous,random_state = 10)
+        clusterer = KMeans(n_clusters=previous, random_state = 10)
         clusterer1 = clusterer.fit(np.transpose(np.where(miniImg > threshold)))
         cluster_centers = clusterer1.cluster_centers_
         cluster_list = np.copy(cluster_centers)

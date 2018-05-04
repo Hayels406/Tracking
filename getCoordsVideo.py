@@ -93,12 +93,21 @@ if restart > 0:
         frameID +=1
     N = len(sheepLocations[0])
 
+if len(sys.argv) >= 2:
+    runUntil = int(sys.argv[1])
+else:
+    runUntil = length
 
-while(frameID <= 0):
+if len(sys.argv) == 3:
+    plot = sys.argv[2]
+
+
+while(frameID <= runUntil):
     plt.close('all')
     ret, frame = cap.read()
     if ret == True:
         assignmentVec = []
+        frameCov = []
         full = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
 
         quadLocation, quadCrop = getQuad(full, quadLocation, quadCrop, quadDark, frameID)
@@ -167,16 +176,16 @@ while(frameID <= 0):
                         s_x = np.sqrt(cov[0])
                         s_y = np.sqrt(cov[2])
                         rho = cov[1]/(s_x*s_y)
-                        sheepCov += [[s_x, s_y, rho]]
+                        frameCov += [[s_x, s_y, rho]]
 
                     else:
                         miniImage = img[y: y + h, x: x + w]
-                        miniGrey = grey[y: y + h, x: x + w]
+                        miniGrey = np.copy(grey)[y: y + h, x: x + w]
 
                         k = -1
 
                         new_objects_k, sCov_k = kmeansClustering(miniImage, miniGrey, numPixels, x, y, previous = k)
-                        new_objects_i, sCov_i, irisImg = iris(miniImage, x, y)
+                        new_objects_i, sCov_i = iris(miniImage, x, y)
 
                         num_new_objects_k = np.shape(new_objects_k)[0]
                         num_new_objects_i = np.shape(new_objects_i)[0]
@@ -184,12 +193,12 @@ while(frameID <= 0):
                         if num_new_objects_i == 1:
                             check = 'Off'
                             objectLocations += new_objects_k
-                            sheepCov += sCov_k
+                            frameCov += sCov_k
 
                         elif num_new_objects_k == 1:
                             check = 'Off'
                             objectLocations += new_objects_i
-                            sheepCov += sCov_i
+                            frameCov += sCov_i
 
                         elif num_new_objects_k == num_new_objects_i:
                             C = cdist(new_objects_i, new_objects_k)
@@ -199,37 +208,43 @@ while(frameID <= 0):
                             if av_dist < 3.5:
                                 check = 'Off'
                                 objectLocations += new_objects_k
-                                sheepCov += sCov_k
+                                frameCov += sCov_k
 
                         if check == 'On':
                             if init == True:
                                 if initFile[initLoc] == 2:
                                     objectLocations += new_objects_k
-                                    sheepCov += sCov_k
+                                    frameCov += sCov_k
                                 elif initFile[initLoc] == 3:
                                     objectLocations += new_objects_i
-                                    sheepCov += sCov_i
+                                    frameCov += sCov_i
                                 initLoc += 1
                             else:
                                 objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_k, rectangle, k)
                                 if objectLocations[-1] == new_objects_k[-1]:
-                                    sheepCov += sCov_k
+                                    frameCov += sCov_k
                                 elif objectLocations[-1] == new_objects_i[-1]:
-                                    sheepCov += sCov_i
+                                    frameCov += sCov_i
 
                 elif frameID <= 6:
                     if numPixels < oneSheepPixels:
                         objectLocations += [[cX, cY]]
+                        cov = np.cov(np.transpose(np.array(np.where(labelMask > 0)))[:,::-1], rowvar = False).flatten()[[0,1,-1]].tolist()
+                        s_x = np.sqrt(cov[0])
+                        s_y = np.sqrt(cov[2])
+                        rho = cov[1]/(s_x*s_y)
+                        frameCov += [[s_x, s_y, rho]]
                     else:
                         miniImage = img[y: y + h, x: x + w]
+                        miniGrey = np.copy(grey)[y: y + h, x: x + w]
 
                         lastT = np.array(sheepLocations[-1])
                         padding = 3
                         Ids = getPreviousID(lastT, x, y, w, h, cropX, cropY, padding)
                         k = len(Ids)
 
-                        new_objects_k = kmeansClustering(miniImage, numPixels, x, y, previous = k)
-                        new_objects_i   = iris(miniImage, x, y)
+                        new_objects_k, sCov_k = kmeansClustering(miniImage, miniGrey, numPixels, x, y, previous = k)
+                        new_objects_i, sCov_i = iris(miniImage, x, y)
 
                         num_new_objects_k = np.shape(new_objects_k)[0]
                         num_new_objects_i = np.shape(new_objects_i)[0]
@@ -242,24 +257,28 @@ while(frameID <= 0):
                             if av_dist < 3.5:
                                 check = 'Off'
                                 objectLocations += new_objects_k
-
-
-
+                                frameCov += sCov_k
 
                         else:
                             check = 'Off'
                             objectLocations += new_objects_k
+                            frameCov += sCov_k
 
                         if check == 'On':
                             if init == True:
                                 if initFile[initLoc] == 2:
                                     objectLocations += new_objects_k
+                                    frameCov += sCov_k
                                 elif initFile[initLoc] == 3:
                                     objectLocations += new_objects_i
+                                    frameCov += sCov_i
                                 initLoc += 1
                             else:
                                 objectLocations = doCheck(fullCropped, objectLocations, cX, cY, img, new_objects_i, new_objects_k, rectangle, k)
-
+                                if objectLocations[-1] == new_objects_k[-1]:
+                                    frameCov += sCov_k
+                                elif objectLocations[-1] == new_objects_i[-1]:
+                                    frameCov += sCov_i
 
                 else:
                     pred_objects, Ids = getPredictedID(prediction_Objects, np.copy(labelMask),  cropVector, rectangle)
@@ -269,6 +288,11 @@ while(frameID <= 0):
                     if (frameID == 16) & (label == np.unique(labels)[-2]):
                         objectLocations += [[cX, cY]]
                         assignmentVec += [141]
+                        cov = np.cov(np.transpose(np.array(np.where(labelMask > 0)))[:,::-1], rowvar = False).flatten()[[0,1,-1]].tolist()
+                        s_x = np.sqrt(cov[0])
+                        s_y = np.sqrt(cov[2])
+                        rho = cov[1]/(s_x*s_y)
+                        frameCov += [[s_x, s_y, rho]]
                         for i in range(frameID):
                             sheepLocations[i] = np.append(sheepLocations[i], [[cX+cropX, cY+cropY]], axis = 0)
                         k = -1
@@ -277,9 +301,15 @@ while(frameID <= 0):
                         new_objects_manual = [[158.,  1030.], [147.,  np.shape(fullCropped)[0] - 1],  [170., np.shape(fullCropped)[0] - 1]]
                         objectLocations += new_objects_manual
                         assignmentVec += [141, 142,  143]
+                        cov = np.cov(np.transpose(np.array(np.where(labelMask > 0)))[:,::-1], rowvar = False).flatten()[[0,1,-1]].tolist()
+                        s_x = np.sqrt(cov[0])
+                        s_y = np.sqrt(cov[2])
+                        rho = cov[1]/(s_x*s_y)
+                        frameCov += [[s_x, s_y, rho], [s_x, s_y, rho], [s_x, s_y, rho]]
                         for point in new_objects_manual[1:]:
                             for i in range(frameID):
                                 sheepLocations[i] = np.append(sheepLocations[i], [[point[0]+cropX, point[1]+cropY]], axis = 0)
+                                sheepCov[i] = np.append(sheepCov[i], [[s_x, s_y, rho]])
                         k = -1
 
 
@@ -287,17 +317,23 @@ while(frameID <= 0):
                     if k == 1:
                         objectLocations += [[cX, cY]]
                         assignmentVec += assignSheep([cX, cY], distImg, Ids, centre=[cX, cY])
+                        cov = np.cov(np.transpose(np.array(np.where(labelMask > 0)))[:,::-1], rowvar = False).flatten()[[0,1,-1]].tolist()
+                        s_x = np.sqrt(cov[0])
+                        s_y = np.sqrt(cov[2])
+                        rho = cov[1]/(s_x*s_y)
+                        frameCov += [[s_x, s_y, rho]]
                     elif k > 1:
-                        pred_objects[:,0] -= cropX
-                        pred_objects[:,1] -= cropY
+                        #pred_objects[:,0] -= cropX
+                        #pred_objects[:,1] -= cropY
 
                         labelImg = np.copy(img)
                         labelImg[labels != label] = 0.
 
                         miniImage = labelImg[y: y + h, x: x + w]
+                        miniGrey = np.copy(grey)[y: y + h, x: x + w]
 
-                        new_objects_k = kmeansClustering(miniImage, numPixels, x, y, previous = k)
-                        new_objects_i   = iris(miniImage, x, y)
+                        new_objects_k, sCov_k = kmeansClustering(miniImage, miniGrey, numPixels, x, y, previous = k)
+                        new_objects_i, sCov_i = iris(miniImage, x, y)
 
                         num_new_objects_k = np.shape(new_objects_k)[0]
                         num_new_objects_i = np.shape(new_objects_i)[0]
@@ -314,13 +350,16 @@ while(frameID <= 0):
                             if mean_C_i < mean_C_k:
                                 objectLocations += new_objects_i
                                 assignmentVec += assignSheep(new_objects_i, distImg, Ids, centre=[cX,  cY])
+                                frameCov += sCov_i
                             else:
                                 objectLocations += new_objects_k
                                 assignmentVec += assignSheep(new_objects_k, distImg, Ids, centre=[cX,  cY])
+                                frameCov += sCov_k
 
                         else:
                             objectLocations += new_objects_k
                             assignmentVec += assignSheep(new_objects_k, distImg, Ids, centre=[cX,  cY])
+                            frameCov += sCov_k
 
 
 
@@ -344,6 +383,7 @@ while(frameID <= 0):
             _, assignmentVec = linear_sum_assignment(finalDist)
 
         finalLocations = organiseLocations(copy.deepcopy(objectLocations), copy.deepcopy(assignmentVec), frameID)
+        frameCov = organiseLocations(frameCov, assignmentVec, frameID)
 
         l = len(finalLocations)
         if plot != 'N':
@@ -359,6 +399,7 @@ while(frameID <= 0):
 
         sheepLocations = sheepLocations + [finalLocations]
         sheepVelocity = sheepVelocity + [vel]
+        sheepCov = sheepCov + [np.array(frameCov).tolist()]
 
 
         print 'frameID: ' + str(frameID)+ ', No. objects located:', l
@@ -380,7 +421,7 @@ while(frameID <= 0):
 
         frameID += 1
 
-cap.release()
+#cap.release()
 
 
 np.save(save+'locfull.npy', np.array(sheepLocations))
