@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import sys
@@ -19,6 +21,7 @@ def mahalDist(image):
     mahalDist = np.array(d).reshape(*shape[:-1])
 
     plt.imshow(mahalDist, cmap = 'gray')
+    return mahalDist
 
 
 
@@ -32,54 +35,62 @@ plt.imshow(np.copy(fullCropped)[:,:,0], cmap = 'gray')
 plt.gca().set_axis_off()
 plt.savefig(save+'grey/red.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
+np.save(save+'grey/red.npy', np.copy(fullCropped)[:,:,0].flatten())
 
-#gree channel
+#green channel
 plt.imshow(np.copy(fullCropped)[:,:,1], cmap = 'gray')
 plt.gca().set_axis_off()
 plt.savefig(save+'grey/green.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
+np.save(save+'grey/green.npy', np.copy(fullCropped)[:,:,1].flatten())
 
 #blue channel
 plt.imshow(np.copy(fullCropped)[:,:,2], cmap = 'gray')
 plt.gca().set_axis_off()
 plt.savefig(save+'grey/blue.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
+np.save(save+'grey/blue.npy', np.copy(fullCropped)[:,:,2].flatten())
 
 #product
 plt.imshow(np.product(np.copy(fullCropped), axis = 2), cmap = 'gray')
 plt.gca().set_axis_off()
 plt.savefig(save+'grey/product.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
+np.save(save+'grey/product.npy', np.product(np.copy(fullCropped), axis = 2).flatten())
 
-#exponential
-R = np.copy(fullCropped)[:,:,0]
-G = np.copy(fullCropped)[:,:,1]
-B = np.copy(fullCropped)[:,:,2]
+#gamma correction
+R = np.copy(fullCropped)[:,:,0]/255.
+G = np.copy(fullCropped)[:,:,1]/255.
+B = np.copy(fullCropped)[:,:,2]/255.
 
-m = 5.
-expon = np.exp(m*np.copy(R)/255.) + np.exp(m*np.copy(G)/255.) + np.exp(m*np.copy(B)/255.)
-plt.imshow(expon/np.max(expon), cmap = 'gray')
+gamma = 5.
+gCor = (R**gamma + G**gamma + B**gamma)/3.
+plt.imshow(gCor, cmap = 'gray')
 plt.gca().set_axis_off()
-plt.savefig(save+'grey/exponential.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
+plt.savefig(save+'grey/gammaCorrection.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
+np.save(save+'grey/gammaCorrection.npy', gCor.flatten())
 
-#difference R-G
-plt.imshow(R-G, cmap='gray')
+
+#difference G-R
+plt.imshow(- np.copy(fullCropped)[:,:,0] + np.copy(fullCropped)[:,:,1], cmap='gray')
 plt.gca().set_axis_off()
-plt.savefig(save+'grey/R-G.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
+plt.savefig(save+'grey/G-R.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
+np.save(save+'grey/GR.npy', (- np.copy(fullCropped)[:,:,0] + np.copy(fullCropped)[:,:,1]).flatten())
 
 #mahalanobis
-mahalDist(np.copy(fullCropped))
+mD = mahalDist(np.copy(fullCropped))
 plt.gca().set_axis_off()
 plt.savefig(save+'grey/mahalanobis.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
+np.save(save+'grey/mahalanobis.npy', mD.flatten())
 
 #conventional
 plt.imshow(cv2.cvtColor(np.copy(fullCropped),cv2.COLOR_RGB2GRAY), cmap = 'gray')
 plt.gca().set_axis_off()
 plt.savefig(save+'grey/grey.pdf', bbox_inches='tight', pad_inches=0, format = 'pdf', dpi=300)
 plt.close('all')
-
+np.save(save+'grey/grey.npy', cv2.cvtColor(np.copy(fullCropped),cv2.COLOR_RGB2GRAY).flatten())
 
 os.system('for a in '+save+'grey/*.pdf; do pdfcrop "$a" "$a"; done')
