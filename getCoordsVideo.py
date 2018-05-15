@@ -200,6 +200,12 @@ while(frameID <= runUntil):
                         coords = np.transpose(np.where(np.copy(maxfilter)[y: y+ h, x:x+w] > darkTolerance*2))[:,::-1] + np.array([x,y])
                         mm = bgm(n_components = number, covariance_type='tied').fit(coords)
                         objectLocations += mm.means_.tolist()
+                        cov = mm.covariances_.flatten()[[0,1,-1]]
+                        s_x = np.sqrt(cov[0])
+                        s_y = np.sqrt(cov[2])
+                        rho = cov[1]/(s_x*s_y)
+                        frameCov += [[s_x, s_y, rho]]*len(mm.means_)
+
                         if init == False:
                             plt.imshow(miniImage)
                             plt.scatter(mm.means_[:,0]-x, mm.means_[:,1]-y)
