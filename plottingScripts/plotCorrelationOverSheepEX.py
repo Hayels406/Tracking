@@ -4,7 +4,7 @@ import os
 import sys
 from scipy.spatial.distance import mahalanobis
 import cv2
-
+from trackingFunctions import bivariateNormal
 
 def plotSheepCov(sCov, objectLoc, cropx, cropy):
         for i in range(len(sCov)):

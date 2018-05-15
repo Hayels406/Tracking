@@ -3,6 +3,7 @@ import sys
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib import rc
+import os
 
 if os.getcwd().rfind('Uni') > 0:
     videoLocation = '/home/b1033128/Documents/throughFenceRL.mp4'
@@ -29,7 +30,7 @@ while len(sheep[-1]) != len(sheep[0]):
 	sheep = np.array(sheep[:-1])
 N = np.shape(sheep)[1]
 S = 0
-F = -1
+F = 201
 
 colors = [ cm.prism(x) for x in np.linspace(0., 1., N)]
 for j in range(N):

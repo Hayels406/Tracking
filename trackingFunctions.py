@@ -75,6 +75,12 @@ def getPredictedID(pred, mask, cropV, rect):
         ids = []
         for i in range(len(points)):
             point = points[i]
+            if point[1] >= cropYMax - cropY:
+                point[1] = cropYMax - cropY - 1
+
+            if point[0] >= cropXMax - cropX:
+                point[0] = cropXMax - cropX - 1
+
             if mask[point[1],point[0]] == 1:
                 containedPoints += [point]
                 ids += [i]
@@ -88,6 +94,11 @@ def getPredictedID(pred, mask, cropV, rect):
         ids = []
         for i in range(len(points)):
             point = points[i]
+            if point[1] >= cropYMax - cropY:
+                point[1] = cropYMax - cropY - 1
+
+            if point[0] >= cropXMax - cropX:
+                point[0] = cropXMax - cropX - 1
             if mask[point[1],point[0]] == 1:
                 containedPoints += [point]
                 ids += [i]
@@ -101,6 +112,11 @@ def getPredictedID(pred, mask, cropV, rect):
         ids = []
         for i in range(len(points)):
             point = points[i]
+            if point[1] >= cropYMax - cropY:
+                point[1] = cropYMax - cropY - 1
+
+            if point[0] >= cropXMax - cropX:
+                point[0] = cropXMax - cropX - 1
             if mask[point[1],point[0]] == 1:
                 containedPoints += [point]
                 ids += [i]
@@ -220,7 +236,10 @@ def iris(miniImg, X, Y):
     iris = iris - np.median(iris)
     iris[iris < 0] = 0
     iris = np.uint8(iris*255./np.max(iris))
-
+    
+    #plt.imshow(iris)
+    #plt.colorbar()
+    #plt.show()
     threshold= 0.3*np.max(iris)
     _, thresh = cv2.threshold(iris,threshold,255,cv2.THRESH_BINARY)
 
@@ -256,7 +275,7 @@ def iris(miniImg, X, Y):
     return final_objects, sCov
 
 def kmeansClustering(miniImg, miniImg2, numberPixels, X, Y, previous):
-    threshold= 0.85*np.max(miniImg)
+    threshold= 0.5*np.max(miniImg)
     if previous == 0:
         plt.imshow(miniImg)
         plt.axes().set_aspect('auto')
@@ -417,8 +436,8 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector
         minPixels = sizeOfObject
         oneSheepPixels = 250
         filtered = np.copy(maxF)
-        filtered[filtered < 65.] = 0.0 #for removing extra shiney grass
-        filtered[filtered > 0.] = 255.
+        filtered[filtered < 0.2] = 0.0 #for removing extra shiney grass
+        filtered[filtered > 0.] = 1.
         z = []
 
     elif frameID > 6:
@@ -431,22 +450,21 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector
         z =  []
         rho = 0
 
-        if frameID <= 40:
-            s_x, s_y = [2.8, 2.8]
-        elif frameID <= 100:
-            s_x, s_y = [2.5, 2.5]
-        else:
-            s_x, s_y = [2.2, 2.2]
 
         if frameID == 18:
             pred_Objects = pred_Objects[:-1]
 
         for i in range(len(pred_Objects)):
+            if frameID <= 5:
+                s_x, s_y = [2.8, 2.8]
+            else:
+                sCov = pred_Dist[-5:,i,:].mean(axis = 0)
+                s_x, s_y, rho = sCov
             point = pred_Objects[i]
-            x2, rxy, _, y2 = np.array(pred_Dist[i][:2,:2]).flatten()
+            #x2, rxy, _, y2 = np.array(pred_Dist[i][:2,:2]).flatten()
             m_x = point[0]
             m_y = point[1]
-            rho = rxy/np.sqrt(x2*y2)
+            #rho = rxy/np.sqrt(x2*y2)
             z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
 
         if (frameID == 16):
