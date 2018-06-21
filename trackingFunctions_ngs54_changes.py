@@ -140,9 +140,9 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     cropVector = [cropX, cropY, cropXMax, cropYMax]
     return (fullCropped, cropVector)
 
-def createBinaryImage(frameID, pred_Objects, pred_Dist, cropVector, maxF, darkTolerance, weight=None):
+def createBinaryImageTFRL(frameID, pred_Objects, pred_Dist, cropVector, maxF, darkTolerance, weight=None):
     cropX, cropY, cropXMax, cropYMax = cropVector
-    if frameID <= 6:
+    if frameID <= 20:
         filtered = np.copy(maxF)
         filtered[filtered < darkTolerance] = 0.0 #for removing extra shiney grass
         filtered[filtered > 0.] = 1.
@@ -181,6 +181,16 @@ def createBinaryImage(frameID, pred_Objects, pred_Dist, cropVector, maxF, darkTo
         filtered = np.maximum(np.copy(maxF),filtered)
         filtered[filtered < darkTolerance] = 0.0 #for removing extra shiney grass
         filtered[filtered > 0.] = 1.
+
+
+    return (filtered, z)
+
+def createBinaryImage(frameID, pred_Objects, pred_Dist, cropVector, maxF, darkTolerance, weight=None):
+    cropX, cropY, cropXMax, cropYMax = cropVector
+    filtered = np.copy(maxF)
+    filtered[filtered < darkTolerance] = 0.0 #for removing extra shiney grass
+    filtered[filtered > 0.] = 1.
+    z = []
 
 
     return (filtered, z)

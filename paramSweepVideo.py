@@ -43,7 +43,7 @@ toSkip = 0#sys.argv[2]
 plot = 's'
 tlPercent = float(sys.argv[2])
 tuPercent = float(sys.argv[3])
-tuPercent = 0.6
+
 
 quadDark = 100.
 weight = 0.3

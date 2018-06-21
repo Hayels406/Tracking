@@ -63,8 +63,8 @@ cap = cv2.VideoCapture(videoLocation)
 length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 print 'You have', length, 'frames', videoLocation
 
-print 'Skipping first 22 frames while the sheep are hiding under the tree'
-while(frameID <= 22):
+print 'Skipping first 19 frames while the sheep are hiding under the tree'
+while(frameID <= 19):
     ret, frame = cap.read()
     frameID += 1
 skip = frameID
@@ -119,14 +119,9 @@ while(frameID <= runUntil):
         maxfilter = ndimage.maximum_filter(img, size=3)
         vel = []
 
-        if frameID > 20:
-            pass
-            prediction_Objects, prediction_Distributions = predictKalman(np.array(sheepLocations))
-            filtered, distImg = createBinaryImage(frameID, prediction_Objects, np.array(sheepCov), cropVector, maxfilter,darkTolerance, weight)
-        else:
-            prediction_Objects = []
-            prediction_Distributions = []
-            filtered, distImg = createBinaryImage(frameID, prediction_Objects, np.array(sheepCov), cropVector, maxfilter, darkTolerance)
+        prediction_Objects = []
+        prediction_Distributions = []
+        filtered, distImg = createBinaryImage(frameID, prediction_Objects, np.array(sheepCov), cropVector, maxfilter, darkTolerance)
 
 
         if plot != 'N':
@@ -134,7 +129,7 @@ while(frameID <= runUntil):
             plt.gca().set_aspect('equal')
             plt.gca().set_axis_off()
             if plot == 's':
-                plt.savefig(save+'filtered/'+str(frameID+skip+22).zfill(4), bbox_inches='tight')
+                plt.savefig(save+'filtered/'+str(frameID+skip+19).zfill(4), bbox_inches='tight')
 
         labels = measure.label(filtered, neighbors=8, background=0)
         labelPixels = map(lambda label: (labels == label).sum(), np.unique(labels))
@@ -191,8 +186,8 @@ while(frameID <= runUntil):
                                 plt.scatter(x+w/2,y+h/2,color='r')
                                 plt.pause(0.0001)
                                 guessed = int(np.round(numPixels/np.percentile(labelPixels[1:],50)))
-                                #text = raw_input("How many sheep in this mini image ["+str(guessed)+"]:")
-                                text = ''
+                                text = raw_input("How many sheep in this mini image ["+str(guessed)+"]:")
+                                #text = ''
                                 if text=='':
                                     number = guessed
                                 else:
@@ -271,7 +266,7 @@ while(frameID <= runUntil):
         sheepCov = sheepCov + [np.array(finalCov).tolist()]
 
 
-        print 'frameID: ' + str(skip+frameID+22)+ ', No. objects located:', l
+        print 'frameID: ' + str(skip+frameID)+ ', No. objects located:', l
 
         if l < N:
             brk = True
@@ -283,9 +278,9 @@ while(frameID <= runUntil):
             break
 
 
-        np.save(save+'loc'+str(frameID+skip), (finalLocations, cropVector))
-        np.save(save+'quad'+str(frameID+skip), np.array(quadLocation)[-1])
-        np.save(save+'cov'+str(frameID+skip), np.array(sheepCov)[-1])
+        np.save(save+'loc'+str(frameID+skip), (sheepLocations, cropVector))
+        np.save(save+'quad'+str(frameID+skip), np.array(quadLocation))
+        np.save(save+'cov'+str(frameID+skip), np.array(sheepCov))
 
         plt.clf()
         frameID = frameID + 1
