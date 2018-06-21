@@ -13,6 +13,16 @@ from collections import Counter
 
 import myKalman as mKF
 
+def extractDensityCoordinates(miniG):
+     c=[]
+     np.random.seed(1)
+     for xi in range(np.shape(miniG)[1]):
+         for yi in range(np.shape(miniG)[0]):
+             coords = np.array([yi,xi]) + np.random.rand(int((np.round(miniG, 3)*100)[yi,xi]), 2)  - 0.5
+             if len(coords) > 0:
+                 c += coords.tolist()
+     return np.array(c)[::10,::-1]
+
 def predictKalmanIndv(loc):
     x,nextX,nextP = mKF.kalman(loc)
     return (np.transpose(nextX[:2]).tolist()[0], nextP)
@@ -236,7 +246,7 @@ def iris(miniImg, X, Y):
     iris = iris - np.median(iris)
     iris[iris < 0] = 0
     iris = np.uint8(iris*255./np.max(iris))
-    
+
     #plt.imshow(iris)
     #plt.colorbar()
     #plt.show()
@@ -430,7 +440,7 @@ def movingCrop(frameID, full, sheepLoc, cropVector):
     cropVector = [cropX, cropY, cropXMax, cropYMax]
     return (fullCropped, cropVector)
 
-def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector, maxF):
+def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector, maxF, weight=None):
     cropX, cropY, cropXMax, cropYMax = cropVector
     if frameID <= 6:
         minPixels = sizeOfObject
@@ -460,12 +470,13 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector
             else:
                 sCov = pred_Dist[-5:,i,:].mean(axis = 0)
                 s_x, s_y, rho = sCov
+                s_x = s_x*2
+                s_y = s_y*2
             point = pred_Objects[i]
-            #x2, rxy, _, y2 = np.array(pred_Dist[i][:2,:2]).flatten()
             m_x = point[0]
             m_y = point[1]
-            #rho = rxy/np.sqrt(x2*y2)
             z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
+            z[-1] = z[-1]/np.max(z[-1])
 
         if (frameID == 16):
             m_x = 150 + cropX
@@ -486,11 +497,11 @@ def createBinaryImage(frameID, sizeOfObject, pred_Objects, pred_Dist, cropVector
             z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
             filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)
         else:
-            filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)
+            filtered = (np.array(z).sum(axis = 0))*np.copy(maxF)#(np.array(z).sum(axis = 0))*(weight)+np.copy(maxF)*(1-weight)
 
-        filtered = 255.*filtered/np.max(filtered)
-        filtered[filtered < 5.] = 0
-        filtered[filtered > 0.] = 255.
+        filtered = filtered/np.max(filtered)
+        filtered[filtered <= 1e-3] = 0
+        filtered[filtered > 1e-3] = 1.
 
 
     return (filtered, minPixels, oneSheepPixels, z)
