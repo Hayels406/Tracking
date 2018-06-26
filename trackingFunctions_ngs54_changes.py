@@ -11,36 +11,46 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from collections import Counter
 from sklearn.mixture import BayesianGaussianMixture as bgm
+from sklearn.mixture import GaussianMixture as gm
+from scipy.stats import norm
+from scipy.spatial.distance import mahalanobis
 
 import myKalman as mKF
 
 def getBlackSheep(fullImg, sLoc, cropV, darkTolerance, frameId):
-    fullCropped, cropV = movingCropBS(frameId, np.copy(fullImg), sLoc, cropV)
+    blackSheepImage, cropV = movingCropBS(frameId, np.copy(fullImg), sLoc, cropV)
     cropX, cropY, cropXMax, cropYMax = cropV
 
-    grey = (np.copy(fullCropped)[:,:,1]/255.)**3
-    grey = grey - np.min(grey)
-    grey = grey/np.max(grey)
+    shape = np.shape(blackSheepImage)
+    noElements = np.product(np.array(np.shape(blackSheepImage)))
+    fullArray = np.transpose(blackSheepImage.reshape(noElements/3,3))
 
-    upper = np.max(darkTolerance)
-    lower = np.min(darkTolerance)
+    Cov = np.cov(fullArray)
+    backgroundElem = np.product(np.array(np.shape(blackSheepImage[50:, 50:,:])))
+    m = (blackSheepImage[50:, 50:,:]).reshape(backgroundElem/3, 3).mean(axis = 0)
+    d = map(lambda i:mahalanobis(m, fullArray[:,i], np.linalg.inv(Cov)), range(np.shape(fullArray)[1]))
 
-    thresh = np.copy(1-grey)
-    thresh[thresh < lower] = 0
-    thresh[thresh > upper] = 1
+    mahalDist = np.array(d).reshape(*shape[:-1])
+    mD = mahalDist/np.max(mahalDist)
 
-    imgBS = cv2.GaussianBlur(thresh, (9,9), 5)
+    prod = np.product(np.copy(blackSheepImage), axis = 2)
+    prod = prod*1./np.max(prod)
 
-    binary = np.copy(imgBS)
-    binary[binary < upper] = 0
-    binary[binary > upper] = 1
+    grey = mD/np.max(mD) - prod*1./np.max(prod)
+    grey[grey < 0] = 0
 
-    labelMask = np.zeros(binary.shape, dtype="uint8")
-    labelMask[binary == 1] = 1
+    binary = np.copy(grey)
+    binary[binary < darkTolerance] = 0
+    binary[binary > darkTolerance] = 1
+
+    labels = measure.label(binary, neighbors=8, background=0)
+    labelMask = np.zeros(labels.shape, dtype="uint8")
+    labelPixels = map(lambda label: (labels == label).sum(), np.unique(labels))
+    labelMask[labels == np.where(labelPixels == np.max(labelPixels[1:]))[0][0]] = 1
     cnts = cv2.findContours(np.copy(labelMask), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
     rectangle = cv2.boundingRect(cnts)
     x,y,w,h = rectangle
-    miniGrey = np.copy(imgBS*labelMask)[y: y + h, x: x + w]
+    miniGrey = np.copy(grey*labelMask)[y: y + h, x: x + w]
 
     c = extractDensityCoordinates(miniGrey)
     mm = bgm(n_components = 1, covariance_type='tied', random_state=1,max_iter=1000,tol=1e-6).fit(c.tolist())
@@ -51,14 +61,22 @@ def getBlackSheep(fullImg, sLoc, cropV, darkTolerance, frameId):
     rho = cov[1]/(s_x*s_y)
     bsCov = [[s_x, s_y, rho]]
 
-    return blackSheep, bsCov, cropV
+    sLoc += blackSheep
+    return sLoc, bsCov, cropV
 
 def movingCropBS(frameID, fullIm, loc, cropV):
     cropX, cropY, cropXMax, cropYMax = cropV
 
+    if frameID == 1:
+        center = map(int, loc[-1])
+        cropX = center[0] - 50
+        cropXMax = center[0] + 50
+        cropY = center[1] - 50
+        cropYMax = center[1] + 50
+
+        cropV = [cropX, cropY, cropXMax, cropYMax]
     if frameID > 2:
-        bsLoc = loc[:,0,:]
-        moveX, moveY = np.array(bsLoc)[-2] - np.array(bsLoc)[-1]
+        moveX, moveY = np.array(loc)[-2] - np.array(loc)[-1]
         cropX = int(cropX - moveX)
         cropY = int(cropY - moveY)
         cropXMax = int(cropXMax - moveX)
@@ -73,8 +91,10 @@ def getQuad(fullImg, quadLoc, cropV, darkTolerance, frameId):
     fullCropped, cropV = movingCropQuad(frameId, np.copy(fullImg), quadLoc, cropV)
     grey = np.copy(fullCropped)[:,:,0] - np.copy(fullCropped)[:,:,1]
     binary = np.copy(grey)
+    gmm = gm(n_components=2, covariance_type='full').fit((binary.flatten()).reshape(-1,1))
+    upper = norm(loc = gmm.means_[np.where(gmm.means_ == np.max(gmm.means_))[0][0]], scale = np.sqrt(gmm.covariances_[np.where(gmm.means_ == np.max(gmm.means_))[0][0]]))
+    darkTolerance = upper.ppf(0.01)
     binary[binary < darkTolerance] = 0
-    binary[binary > darkTolerance] = 255
 
     quad = np.array(np.where(binary == 0)).mean(axis = 1)[::-1]
 
@@ -84,13 +104,12 @@ def getQuad(fullImg, quadLoc, cropV, darkTolerance, frameId):
 
 def movingCropQuad(frameID, fullIm, quadLoc, cropV):
     cropX, cropY, cropXMax, cropYMax = cropV
-
-    if frameID > 2:
-        moveX, moveY = np.array(quadLoc)[-2] - np.array(quadLoc)[-1]
-        cropX = int(cropX - moveX)
-        cropY = int(cropY - moveY)
-        cropXMax = int(cropXMax - moveX)
-        cropYMax = int(cropYMax - moveY)
+    if frameID >= 1:
+        center = map(int, quadLoc[-1])
+        cropX = center[0] - 50
+        cropXMax = center[0] + 50
+        cropY = center[1] - 50
+        cropYMax = center[1] + 50
 
         cropV = [cropX, cropY, cropXMax, cropYMax]
 
@@ -187,10 +206,30 @@ def createBinaryImageTFRL(frameID, pred_Objects, pred_Dist, cropVector, maxF, da
 
 def createBinaryImage(frameID, pred_Objects, pred_Dist, cropVector, maxF, darkTolerance, weight=None):
     cropX, cropY, cropXMax, cropYMax = cropVector
+
     filtered = np.copy(maxF)
     filtered[filtered < darkTolerance] = 0.0 #for removing extra shiney grass
     filtered[filtered > 0.] = 1.
     z = []
+
+    if frameID > 1:
+        x_r =  np.arange(cropX,  cropXMax)
+        y_r =  np.arange(cropY,  cropYMax)
+        xx, yy =  np.meshgrid(x_r, y_r)
+
+        for i in range(len(pred_Objects)):
+            if frameID < 5:
+                sCov = pred_Dist[-5:,i,:].mean(axis = 0)
+            else:
+                sCov = pred_Dist[:,i,:].mean(axis = 0)
+            s_x, s_y, rho = sCov
+            s_x = s_x
+            s_y = s_y
+            point = pred_Objects[i]
+            m_x = point[0]
+            m_y = point[1]
+            z += [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
+            z[-1] = z[-1]/np.max(z[-1])
 
 
     return (filtered, z)
@@ -206,6 +245,26 @@ def extractDensityCoordinates(miniG):
      return np.array(c)[:,::-1]
 
 def organiseLocations(objects, assign, frameId):
+    if frameId > 0:
+        count = Counter(assign)
+        multiples = np.where(np.array(count.values()) > 1)[0]
+        multiples = multiples.tolist()
+        multiples.sort()
+        multiples.reverse()
+        for v in multiples:
+            print 'multiples'
+            ind = np.where(np.array(assign) == v)[0]
+            points = np.array(objects)[ind]
+            newPoint = points.mean(axis = 0)
+            for i in ind[::-1]:
+                objects.pop(i)
+                assign.pop(i)
+            objects += [newPoint.tolist()]
+            assign += [v]
+        objects = np.array(objects)[assign]
+    return objects
+
+def organiseLocationsTFRL(objects, assign, frameId):
     if (frameId <= 6) & (frameId > 0):
         objects = np.array(objects)[assign]
     elif frameId > 6:
@@ -310,6 +369,14 @@ def getPredictedID(pred, mask, cropV, rect):
 
     return np.array(containedPoints), ids
 
+
+def predictEuler(locs):
+    if len(locs) > 5:
+        vel = (locs[-1] - locs[-6])/5
+    else:
+        vel = (locs[-1] - locs[0])/(len(locs)-1)
+    prediction_Objects = locs[-1] + vel
+    return prediction_Objects
 
 def predictKalmanIndv(loc):
     x,nextX,nextP = mKF.kalman(loc)

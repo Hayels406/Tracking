@@ -7,6 +7,7 @@ import scipy.ndimage as ndimage
 from imutils import contours
 import imutils as im
 import matplotlib as mpl
+mpl.use('Agg')
 
 import matplotlib.pyplot as plt
 from sklearn.mixture import BayesianGaussianMixture as bgm
@@ -46,18 +47,19 @@ tlPercent = 0.995#float(sys.argv[4])
 tuPercent = 0.1#float(sys.argv[5])
 
 quadDark = 100.
-bsDark = [0.65, 0.85]
+bsDark = 0.5
 weight = 0.3
 gamma = 1.5#float(sys.argv[3])
 
 sheepLocations = []
-sheepVelocity = []
+blackSheepLocations = []
 quadLocation = []
 sheepCov = []
+blackSheepCov = []
 frameID = 0
 cropVector = [100,400,800,1300]
-quadCrop   = [800,1200,1000,1400]
-bsCrop = [264,400,288,430]
+quadCrop   = [700,1200,900,1400]
+bsCrop = [375,725,475,825]
 
 cap = cv2.VideoCapture(videoLocation)
 length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -79,6 +81,8 @@ skip = frameID
 if frameID > 0:
     frameID = 0
 
+print 'Gamma', gamma, 't_l', str(round(tlPercent*100, 2))+'%', 't_u', str(round(tuPercent*100, 2))+'%'
+
 while(frameID <= runUntil):
     plt.close('all')
     ret, frame = cap.read()
@@ -93,9 +97,8 @@ while(frameID <= runUntil):
         fullCropped, cropVector = movingCrop(frameID, full, sheepLocations, cropVector)
         cropX, cropY, cropXMax, cropYMax = cropVector
 
-        #bs, bsCov, bsCrop = getBlackSheep(fullCropped, np.array(sheepLocations), bsCrop, bsDark, frameID)
-        #objectLocations += bs
-        #frameCov += bsCov
+        #blackSheepLocations, bsCov, bsCrop = getBlackSheep(full, blackSheepLocations, bsCrop, bsDark, frameID)
+        #blackSheepCov += bsCov
 
         R = fullCropped[:,:,0]/255.
         G = fullCropped[:,:,1]/255.
@@ -117,10 +120,12 @@ while(frameID <= runUntil):
         img = cv2.GaussianBlur(grey2,(5,5),2)
 
         maxfilter = ndimage.maximum_filter(img, size=3)
-        vel = []
 
-        prediction_Objects = []
-        prediction_Distributions = []
+        if frameID > 1:
+            prediction_Objects = predictEuler(sheepLocations)
+        else:
+            prediction_Objects = []
+            prediction_Distributions = []
         filtered, distImg = createBinaryImage(frameID, prediction_Objects, np.array(sheepCov), cropVector, maxfilter, darkTolerance)
 
 
@@ -134,14 +139,12 @@ while(frameID <= runUntil):
         labels = measure.label(filtered, neighbors=8, background=0)
         labelPixels = map(lambda label: (labels == label).sum(), np.unique(labels))
         sizeSheep = np.percentile(labelPixels[1:],60)
-        print("Estimating large sheep size at: "+str(sizeSheep))
+        #print("Estimating large sheep size at: "+str(sizeSheep))
         smallSheep = np.percentile(labelPixels[1:],20)
-        print("Estimating small sheep size at: "+str(smallSheep))
-        minPixels = 50#smallSheep
+        #print("Estimating small sheep size at: "+str(smallSheep))
+        minPixels = np.min([np.max([50, smallSheep]), 250])
         oneSheepPixels = sizeSheep
 
-
-        print 'Gamma', gamma, 't_l', str(round(tlPercent*100, 2))+'%', 't_u', str(round(tuPercent*100, 2))+'%'
 
         # loop over the unique components
         for label in np.unique(labels):
@@ -178,16 +181,16 @@ while(frameID <= runUntil):
                             frameCov += [[s_x, s_y, rho]]
                         else:
                             if init == False:
-                                plt.clf()
-                                ax1 = plt.subplot(1,2,1)
-                                ax1.imshow(miniImage)
-                                ax2 = plt.subplot(1,2,2)
-                                ax2.imshow(fullCropped)
-                                plt.scatter(x+w/2,y+h/2,color='r')
-                                plt.pause(0.0001)
+                                #plt.clf()
+                                #ax1 = plt.subplot(1,2,1)
+                                #ax1.imshow(miniImage)
+                                #ax2 = plt.subplot(1,2,2)
+                                #ax2.imshow(fullCropped)
+                                #plt.scatter(x+w/2,y+h/2,color='r')
+                                #plt.pause(0.0001)
                                 guessed = int(np.round(numPixels/np.percentile(labelPixels[1:],50)))
-                                text = raw_input("How many sheep in this mini image ["+str(guessed)+"]:")
-                                #text = ''
+                                #text = raw_input("How many sheep in this mini image ["+str(guessed)+"]:")
+                                text = ''
                                 if text=='':
                                     number = guessed
                                 else:
@@ -207,21 +210,58 @@ while(frameID <= runUntil):
                             rho = cov[1]/(s_x*s_y)
                             frameCov += [[s_x, s_y, rho]]*len(mm.means_)
 
-                            if init == False:
-                                ax1.scatter(mm.means_[:,0], mm.means_[:,1])
-                                plt.pause(.5)
-                else:
+                            #if init == False:
+                            #    ax1.scatter(mm.means_[:,0], mm.means_[:,1])
+                            #    plt.pause(.5)
+                elif frameID == 1:
                     lastT = np.array(sheepLocations[-1])
                     dilation = cv2.dilate(labelMask,np.ones((5,5),np.uint8),iterations = 2)
-                    _,Ids = getPredictedID(lastT, dilation, cropVector, rectangle)
+                    prev,Ids = getPredictedID(lastT, dilation, cropVector, rectangle)
                     k = len(Ids)
                     if k == 0:
                         continue
                     else:
                         coords =  extractDensityCoordinates(miniGrey)
 
+                        converged = False
+                        retryValue = 0
+                        while (converged == False) and (retryValue < 5):
+                            mm = bgm(n_components = k, covariance_type='tied', tol=1e-6,n_init=1).fit(coords)
+                            converged = mm.converged_
+                            if converged == False:
+                                print 'retry'
+                                retryValue += 1
+                        new_objects_bgm = (mm.means_ + [x,y])
+                        cov = mm.covariances_.flatten()[[0,1,-1]]
+                        s_x = np.sqrt(cov[0])
+                        s_y = np.sqrt(cov[2])
+                        rho = cov[1]/(s_x*s_y)
+                        sCov_bgm = [[s_x, s_y, rho]]*len(mm.means_)
 
-                        mm = bgm(n_components = k, covariance_type='tied', random_state=1,max_iter=1000,tol=1e-6).fit(coords)
+                        objectLocations += new_objects_bgm.tolist()
+                        frameCov += sCov_bgm
+                        #assignmentVec += np.array(Ids)[linear_sum_assignment(cdist(prev,new_objects_bgm))[0].tolist()].tolist()
+                elif frameID > 1:
+                    miniPred = np.copy(np.array(distImg).sum(axis = 0))[y:y+h,x:x+w]
+                    lastT = np.array(sheepLocations[-1])
+                    dilation = cv2.dilate(labelMask,np.ones((5,5),np.uint8),iterations = 2)
+                    prev,Ids = getPredictedID(lastT, dilation, cropVector, rectangle)
+                    k = len(Ids)
+                    if k == 0:
+                        continue
+                    else:
+                        if k > 1:
+                            coords = extractDensityCoordinates(miniGrey*miniPred)
+                        else:
+                            coords = extractDensityCoordinates(miniGrey)
+                        converged = False
+                        retryValue = 0
+                        while (converged == False) and (retryValue < 5):
+                            mm = bgm(n_components = k, covariance_type='tied', tol=1e-6, n_init=1).fit(coords)
+                            converged = mm.converged_
+                            if converged == False:
+                                print 'retry'
+                                retryValue += 1
                         new_objects_bgm = (mm.means_ + [x,y])
                         cov = mm.covariances_.flatten()[[0,1,-1]]
                         s_x = np.sqrt(cov[0])
@@ -243,7 +283,7 @@ while(frameID <= runUntil):
 
         if (frameID > 0):
             finalDist = cdist(sheepLocations[-1], objectLocations)
-            _, assignmentVec = linear_sum_assignment(finalDist)
+            _, assignmentVec = linear_sum_assignment(np.max(finalDist)*(finalDist/np.max(finalDist))**3)
 
         finalLocations = organiseLocations(copy.deepcopy(objectLocations), copy.deepcopy(assignmentVec), frameID)
         finalCov = organiseLocations(copy.deepcopy(frameCov), copy.deepcopy(assignmentVec), frameID)
@@ -254,17 +294,16 @@ while(frameID <= runUntil):
             plt.imshow(full)
             plt.scatter(np.array(finalLocations)[:, 0], np.array(finalLocations)[:, 1], s = 1.)
             plt.scatter(np.array(quadLocation)[-1,0], np.array(quadLocation)[-1,1], s = 1.)
+            #plt.scatter(np.array(blackSheepLocations)[-1,0], np.array(blackSheepLocations)[-1,1], s = 1.)
             plt.gca().set_aspect('equal')
             plt.gca().set_axis_off()
             if plot == 's':
-                plt.savefig(save+'located/'+str(frameID+skip+22).zfill(4), bbox_inches='tight')
+                plt.savefig(save+'located/'+str(frameID+skip+19).zfill(4), bbox_inches='tight')
             else:
                 plt.pause(15)
 
         sheepLocations = sheepLocations + [finalLocations]
-        sheepVelocity = sheepVelocity + [vel]
         sheepCov = sheepCov + [np.array(finalCov).tolist()]
-
 
         print 'frameID: ' + str(skip+frameID)+ ', No. objects located:', l
 
@@ -277,10 +316,13 @@ while(frameID <= runUntil):
             print 'you gained sheep'
             break
 
-
-        np.save(save+'loc'+str(frameID+skip), (sheepLocations, cropVector))
-        np.save(save+'quad'+str(frameID+skip), np.array(quadLocation))
-        np.save(save+'cov'+str(frameID+skip), np.array(sheepCov))
+        if (np.mod(frameID, 50) == 0) and (frameID > 0):
+            np.save(save+'loc'+str(frameID+skip), (sheepLocations, cropVector))
+            np.save(save+'quad'+str(frameID+skip), np.array(quadLocation))
+            np.save(save+'cov'+str(frameID+skip), np.array(sheepCov))
 
         plt.clf()
         frameID = frameID + 1
+
+np.save(save+'Final-loc'+str(frameID+skip-1), sheepLocations)
+np.save(save+'Final-quad'+str(frameID+skip), np.array(quadLocation))
