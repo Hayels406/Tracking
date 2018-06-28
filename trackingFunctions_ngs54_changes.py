@@ -89,6 +89,7 @@ def movingCropBS(frameID, fullIm, loc, cropV):
 
 def getQuad(fullImg, quadLoc, cropV, darkTolerance, frameId):
     fullCropped, cropV = movingCropQuad(frameId, np.copy(fullImg), quadLoc, cropV)
+
     grey = np.copy(fullCropped)[:,:,0] - np.copy(fullCropped)[:,:,1]
     binary = np.copy(grey)
     gmm = gm(n_components=2, covariance_type='full').fit((binary.flatten()).reshape(-1,1))
@@ -97,6 +98,25 @@ def getQuad(fullImg, quadLoc, cropV, darkTolerance, frameId):
     binary[binary < darkTolerance] = 0
 
     quad = np.array(np.where(binary == 0)).mean(axis = 1)[::-1]
+
+
+    quadLoc += [(quad+[cropV[0],cropV[1]]).tolist()]
+    return quadLoc, cropV
+
+def getQuadCJ2(fullImg, quadLoc, cropV, darkTolerance, frameId):
+    fullCropped, cropV = movingCropQuad(frameId, np.copy(fullImg), quadLoc, cropV)
+
+    grey = np.copy(fullCropped)[:,:,0]
+    grey = grey - np.min(grey)
+    grey = grey*1./np.max(grey)
+
+    binary = np.copy(grey)
+    gmm = gm(n_components=2, covariance_type='full').fit((binary.flatten()).reshape(-1,1))
+    upper = norm(loc = gmm.means_[np.where(gmm.means_ == np.max(gmm.means_))[0][0]], scale = np.sqrt(gmm.covariances_[np.where(gmm.means_ == np.max(gmm.means_))[0][0]]))
+    darkTolerance = upper.ppf(0.25)
+    binary[binary > darkTolerance] = 1
+
+    quad = np.array(np.where(binary == 1)).mean(axis = 1)[::-1]
 
 
     quadLoc += [(quad+[cropV[0],cropV[1]]).tolist()]
@@ -223,8 +243,8 @@ def createBinaryImage(frameID, pred_Objects, pred_Dist, cropVector, maxF, darkTo
             else:
                 sCov = pred_Dist[:,i,:].mean(axis = 0)
             s_x, s_y, rho = sCov
-            s_x = s_x
-            s_y = s_y
+            s_x = 0.8*s_x
+            s_y = 0.8*s_y
             point = pred_Objects[i]
             m_x = point[0]
             m_y = point[1]

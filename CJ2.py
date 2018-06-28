@@ -42,8 +42,8 @@ init = False
 
 runUntil = int(sys.argv[1])
 plot = 's'
-tlPercent = 0.995#float(sys.argv[4])
-tuPercent = 0.1#float(sys.argv[5])
+tlPercent = 0.999
+tuPercent = 0.1
 
 quadDark = 100.
 bsDark = 0.5
@@ -78,13 +78,15 @@ print 'Gamma', gamma, 't_l', str(round(tlPercent*100, 2))+'%', 't_u', str(round(
 while(frameID <= runUntil):
     plt.close('all')
     ret, frame = cap.read()
-    if ret == True:
+    if ret == False:
+        break
+    elif ret == True:
         objectLocations = []
         frameCov = []
         assignmentVec = []
         full = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
 
-        quadLocation, quadCrop = getQuad(full, quadLocation, quadCrop, quadDark, frameID)
+        quadLocation, quadCrop = getQuadCJ2(full, quadLocation, quadCrop, quadDark, frameID)
 
         fullCropped, cropVector = movingCrop(frameID, full, sheepLocations, cropVector)
         cropX, cropY, cropXMax, cropYMax = cropVector
@@ -243,7 +245,7 @@ while(frameID <= runUntil):
                         continue
                     else:
                         if k > 1:
-                            coords = extractDensityCoordinates(miniGrey+miniPred)
+                            coords = extractDensityCoordinates(miniGrey**2*miniPred)
                         else:
                             coords = extractDensityCoordinates(miniGrey)
                         converged = False
@@ -290,7 +292,7 @@ while(frameID <= runUntil):
             plt.gca().set_aspect('equal')
             plt.gca().set_axis_off()
             if plot == 's':
-                plt.savefig(save+'located/'+str(frameID+skip+10).zfill(4), bbox_inches='tight')
+                plt.savefig(save+'located/'+str(frameID+skip).zfill(4), bbox_inches='tight')
             else:
                 plt.pause(15)
 
@@ -316,5 +318,5 @@ while(frameID <= runUntil):
         plt.clf()
         frameID = frameID + 1
 
-np.save(save+'Final-loc'+str(frameID+skip-1), sheepLocations)
+np.save(save+'Final-loc'+str(frameID+skip), sheepLocations)
 np.save(save+'Final-quad'+str(frameID+skip), np.array(quadLocation))
