@@ -56,7 +56,37 @@ def pFilteredFunc(pPrime, k, H):
     return pPrime - k*H*pPrime
 
 
-def kalman(z):
+def kalman(z, cov):
+    x = []
+    p = []
+
+    s_x, s_y, rho = cov
+
+    A = np.matrix(np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]]))
+    H = np.matrix(np.array([[1,0,0,0],[0,1,0,0]]))
+    R = np.matrix(np.array([[(s_x/2.)**2, rho*s_x*s_y/4.],[rho*s_x*s_y/4., (s_y/2.)**2]]))
+    Q = np.matrix(np.array([[0,0,0,0],[0,0,0,0],[0,0,(s_x/4.)**2,0],[0,0,0,(s_y/4.)**2]]))
+
+    initVel = [z[1,0]-z[0,0], z[1,1]-z[0,1]]
+
+    for zt in z:
+        if np.all(zt == z[0]):
+            xt = np.transpose(np.matrix(np.append(zt, initVel)))
+            pt = np.ones((np.shape(xt)[0], np.shape(xt)[0]))
+        else:
+            xt = x[-1]
+            pt = p[-1]
+
+        xPrime = xPrimeFunc(A, xt)
+        pPrime = pPrimeFunc(A, pt, Q)
+
+        kt = Kk(pPrime, R, H)
+        x.append(xFilteredFunc(xPrime, kt, np.transpose(np.matrix(zt)), H))
+        p.append(pFilteredFunc(pPrime, kt, H))
+
+    return (x, xPrimeFunc(A,x[-1]), pPrimeFunc(A,p[-1],Q))
+
+def kalmanSAVE(z):
     x = []
     p = []
 
@@ -65,7 +95,7 @@ def kalman(z):
     R = np.matrix(np.eye(2)*0.01) #noise in the measurements
     Q = np.matrix(np.eye(4)*0.0001) #noise in the true values
 
-    initVel = initVel = [z[1,0]-z[0,0], z[1,1]-z[0,1]]
+    initVel = [z[1,0]-z[0,0], z[1,1]-z[0,1]]
 
     for zt in z:
         if np.all(zt == z[0]):

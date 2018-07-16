@@ -42,8 +42,10 @@ init = False
 runUntil = 9
 toSkip = '0'
 tlPercent = 0.995
-tuPercent = 0.1
-lG = int(sys.argv[1])
+tuPercent = 0.2
+lG = 5
+sigmaG = 2
+lM = int(sys.argv[1])
 
 quadDark = 100.
 bsDark = 0.5
@@ -118,9 +120,9 @@ while(frameID <= runUntil):
         grey2[grey2 < darkTolerance] = 0.0
         grey2[grey2 > darkTolerance2] = 1.
 
-        img = cv2.GaussianBlur(grey2,(5,5),2)
+        img = cv2.GaussianBlur(grey2,(lG,lG),sigmaG)
 
-        maxfilter = ndimage.maximum_filter(img, size=lG)
+        maxfilter = ndimage.maximum_filter(img, size=lM)
 
         if frameID > 1:
             prediction_Objects = predictEuler(sheepLocations)

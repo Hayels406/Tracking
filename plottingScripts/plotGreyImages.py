@@ -26,8 +26,10 @@ def mahalDist(image):
 
 
 
-sys.argv = ['getCoordsVideo.py', 10]
-execfile('getCoordsVideo.py')
+sys.argv = ['CH2.py', '19', '0']
+execfile('CH2.py')
+
+os.system('mkdir '+save+'grey')
 
 
 #red channel
@@ -63,7 +65,7 @@ R = np.copy(fullCropped)[:,:,0]/255.
 G = np.copy(fullCropped)[:,:,1]/255.
 B = np.copy(fullCropped)[:,:,2]/255.
 
-gamma = 5.
+gamma = 1.35
 gCor = (R**gamma + G**gamma + B**gamma)/3.
 plt.imshow(gCor, cmap = 'gray')
 plt.gca().set_axis_off()

@@ -6,8 +6,9 @@ from skimage import measure
 import scipy.ndimage as ndimage
 from imutils import contours
 import imutils as im
-#import matplotlib as mpl
-#mpl.use('Agg')
+import matplotlib as mpl
+mpl.use('Agg')
+
 import matplotlib.pyplot as plt
 from sklearn.mixture import BayesianGaussianMixture as bgm
 from sklearn.mixture import GaussianMixture as gm
@@ -39,7 +40,7 @@ dell = True
 brk = False
 init = False
 
-runUntil = 9
+runUntil = 19
 toSkip = '0'
 tlPercent = float(sys.argv[2])
 tuPercent = float(sys.argv[3])
@@ -60,7 +61,7 @@ quadCrop   = [700,1200,900,1400]
 bsCrop = [375,725,475,825]
 
 #setting up file directories
-g = str(int(gamma*100))
+g = str(int(round(gamma*100)))
 g1 = g[0]
 g2 = g[1:]
 
@@ -142,6 +143,8 @@ while(frameID <= runUntil):
 
         labels = measure.label(filtered, neighbors=8, background=0)
         labelPixels = map(lambda label: (labels == label).sum(), np.unique(labels))
+        if len(labels) < 44:
+            break
         sizeSheep = np.percentile(labelPixels[1:],60)
         #print("Estimating large sheep size at: "+str(sizeSheep))
         smallSheep = np.percentile(labelPixels[1:],20)
@@ -161,7 +164,7 @@ while(frameID <= runUntil):
             labelMask = np.zeros(filtered.shape, dtype="uint8")
             labelMask[labels == label] = 1
             numPixels = labelPixels[label]
-            if len(objectLocations) > 50:
+            if len(objectLocations) > 44:
                 break
 
             # if the number of pixels in the component is sufficiently

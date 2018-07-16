@@ -43,13 +43,14 @@ init = False
 runUntil = int(sys.argv[1])
 toSkip = sys.argv[2]
 plot = 's'
-tlPercent = 0.995#float(sys.argv[4])
-tuPercent = 0.1#float(sys.argv[5])
+
+gamma = 1.35
+tlPercent = 0.995
+tuPercent = 0.2
 
 quadDark = 100.
 bsDark = 0.5
 weight = 0.3
-gamma = 1.5#float(sys.argv[3])
 
 sheepLocations = []
 blackSheepLocations = []
