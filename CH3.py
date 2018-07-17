@@ -21,7 +21,7 @@ import copy
 from glob import glob
 from scipy.stats import norm
 
-from trackingFunctions_ngs54_changes import *
+from trackingFunctions import *
 
 if os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/CaseH3.mov'

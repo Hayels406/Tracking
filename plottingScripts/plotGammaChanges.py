@@ -26,7 +26,7 @@ B = np.copy(fullCropped)[:,:,2]/255.
 for gamma in [1, 1.5, 2, 2.5, 3]:
     print gamma
     gCor = ((R**gamma + G**gamma + B**gamma)/3.).flatten()
-    kernel = gaussian_kde(methods[i])
+    kernel = gaussian_kde(gCor)
     dens = kernel(X)
     plt.plot(X, dens, label = '$\gamma =$ '+str(gamma))
     np.savetxt(save+'pgfData/gamma'+str(int(gamma*10.))+'.txt', np.append(X.reshape(1000,1), dens.reshape(1000,1), axis = 1))
