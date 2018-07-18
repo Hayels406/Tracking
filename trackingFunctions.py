@@ -17,40 +17,69 @@ from scipy.spatial.distance import mahalanobis
 
 import myKalman as mKF
 
-def getBlackSheep(fullImg, sLoc, cropV, darkTolerance, frameId):
+def getBlackSheep(fullImg, sLoc, sCovIn, cropV, frameId, save):
+
     blackSheepImage, cropV = movingCropBS(frameId, np.copy(fullImg), sLoc, cropV)
     cropX, cropY, cropXMax, cropYMax = cropV
+    if frameId > 1:
+        x_r =  np.arange(cropX,  cropXMax)
+        y_r =  np.arange(cropY,  cropYMax)
+        xx, yy =  np.meshgrid(x_r, y_r)
+
+        if frameId < 5:
+            sCov = np.array(sCovIn)[-5:,:].mean(axis = 0)
+        else:
+            sCov = np.array(sCovIn)[:,:].mean(axis = 0)
+        s_x, s_y, rho = sCov
+        s_x = s_x
+        s_y = s_y
+        point = predictEuler(np.array(sLoc))
+        m_x = point[0]
+        m_y = point[1]
+        z = [(1/(2*np.pi*s_x*s_y*np.sqrt(1-rho**2)))*np.exp(-((xx-m_x)**2/(s_x**2) + (yy-m_y)**2/(s_y**2) - 2*rho*(xx-m_x)*(yy-m_y)/(s_x*s_y))/(2*(1-rho**2)))]
+        z = z[0]/np.max(z[0])
+
 
     shape = np.shape(blackSheepImage)
     noElements = np.product(np.array(np.shape(blackSheepImage)))
     fullArray = np.transpose(blackSheepImage.reshape(noElements/3,3))
 
     Cov = np.cov(fullArray)
-    backgroundElem = np.product(np.array(np.shape(blackSheepImage[50:, 50:,:])))
-    m = (blackSheepImage[50:, 50:,:]).reshape(backgroundElem/3, 3).mean(axis = 0)
+    backgroundElem = np.product(np.array(np.shape(fullImg[500:1200, 1600:1900,:])))
+    m = (fullImg[500:1200, 1600:1900,:]).reshape(backgroundElem/3, 3).mean(axis = 0)
     d = map(lambda i:mahalanobis(m, fullArray[:,i], np.linalg.inv(Cov)), range(np.shape(fullArray)[1]))
 
     mahalDist = np.array(d).reshape(*shape[:-1])
-    mD = mahalDist/np.max(mahalDist)
+    mD = mahalDist*1./np.max(mahalDist)
 
     prod = np.product(np.copy(blackSheepImage), axis = 2)
     prod = prod*1./np.max(prod)
 
-    grey = mD/np.max(mD) - prod*1./np.max(prod)
-    grey[grey < 0] = 0
+    grey = mD - prod
 
-    binary = np.copy(grey)
-    binary[binary < darkTolerance] = 0
-    binary[binary > darkTolerance] = 1
+    if frameId > 1:
+        grey = grey*z
+        grey[grey > 0.01] = 1
+        grey[grey < 1] = 0
+        binary = cv2.morphologyEx(grey, cv2.MORPH_OPEN, np.ones((3,3), np.uint8))
+        plt.savefig(save+'bsFiltered'+str(frameId).zfill(4))
+        labels = measure.label(binary, neighbors=8, background=0)
+        labelMask = np.zeros(labels.shape, dtype="uint8")
+        labelPixels = map(lambda label: (labels == label).sum(), np.unique(labels))
+    else:
+        grey[grey < 0.3] = 0
+        grey[grey > 0] = 1
+        binary = cv2.morphologyEx(grey, cv2.MORPH_OPEN, np.ones((5,5), np.uint8))
+        labels = measure.label(binary, neighbors=8, background=0)
+        labelMask = np.zeros(labels.shape, dtype="uint8")
+        labelPixels = map(lambda label: (labels == label).sum(), np.unique(labels))
 
-    labels = measure.label(binary, neighbors=8, background=0)
-    labelMask = np.zeros(labels.shape, dtype="uint8")
-    labelPixels = map(lambda label: (labels == label).sum(), np.unique(labels))
+
     labelMask[labels == np.where(labelPixels == np.max(labelPixels[1:]))[0][0]] = 1
     cnts = cv2.findContours(np.copy(labelMask), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[1][0]
     rectangle = cv2.boundingRect(cnts)
     x,y,w,h = rectangle
-    miniGrey = np.copy(grey*labelMask)[y: y + h, x: x + w]
+    miniGrey = np.copy(mD*labelMask)[y: y + h, x: x + w]
 
     c = extractDensityCoordinates(miniGrey)
     mm = bgm(n_components = 1, covariance_type='tied', random_state=1,max_iter=1000,tol=1e-6).fit(c.tolist())
@@ -67,20 +96,12 @@ def getBlackSheep(fullImg, sLoc, cropV, darkTolerance, frameId):
 def movingCropBS(frameID, fullIm, loc, cropV):
     cropX, cropY, cropXMax, cropYMax = cropV
 
-    if frameID == 1:
+    if frameID >= 1:
         center = map(int, loc[-1])
-        cropX = center[0] - 50
-        cropXMax = center[0] + 50
-        cropY = center[1] - 50
-        cropYMax = center[1] + 50
-
-        cropV = [cropX, cropY, cropXMax, cropYMax]
-    if frameID > 2:
-        moveX, moveY = np.array(loc)[-2] - np.array(loc)[-1]
-        cropX = int(cropX - moveX)
-        cropY = int(cropY - moveY)
-        cropXMax = int(cropXMax - moveX)
-        cropYMax = int(cropYMax - moveY)
+        cropX = center[0] - 20
+        cropXMax = center[0] + 20
+        cropY = center[1] - 20
+        cropYMax = center[1] + 20
 
         cropV = [cropX, cropY, cropXMax, cropYMax]
 
@@ -393,8 +414,10 @@ def getPredictedID(pred, mask, cropV, rect):
 def predictEuler(locs):
     if len(locs) > 5:
         vel = (locs[-1] - locs[-6])/5
-    else:
+    elif len(locs) > 1:
         vel = (locs[-1] - locs[0])/(len(locs)-1)
+    else:
+        vel = 0
     prediction_Objects = locs[-1] + vel
     return prediction_Objects
 

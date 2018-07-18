@@ -1,6 +1,6 @@
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import sys
@@ -26,10 +26,9 @@ def mahalDist(image):
 
 
 
-sys.argv = ['CH2.py', '0', '0']
+sys.argv = ['CH2.py', '0']
 execfile('CH2.py')
 blackSheepImage = full[725:825,375:475]
-blackSheepImage = blackSheepImage[:,:,::-1]
 
 #red channel
 plt.imshow(np.copy(blackSheepImage)[:,:,0], cmap = 'gray')
@@ -63,6 +62,7 @@ np.save(save+'blackSheep/product.npy', np.product(np.copy(blackSheepImage), axis
 R = np.copy(blackSheepImage)[:,:,0]/255.
 G = np.copy(blackSheepImage)[:,:,1]/255.
 B = np.copy(blackSheepImage)[:,:,2]/255.
+
 
 gamma = .5
 gCor = (R**gamma + G**gamma + B**gamma)/3.
