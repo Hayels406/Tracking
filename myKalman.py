@@ -2,43 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-#if os.getcwd().rfind('hayley') > 0:
-#    videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL.mp4'
-#    save = '/users/hayleymoore/Documents/PhD/Tracking/throughFenceRL/'
-#    plt.ion()
-#elif os.getcwd().rfind('Uni') > 0:
-#    videoLocation = '/home/b1033128/Documents/throughFenceRL.mp4'
-#    save = '/home/b1033128/Documents/throughFenceRL/'
-#    dell = True
-#    brk = False
-#else:#Kiel
-#    videoLocation = '/data/b1033128/Videos/throughFenceRL.mp4'
-#    save = '/data/b1033128/Tracking/throughFenceRL/'
-#    dell = False
-#    plt.ion()
-
-
-#cap = cv2.VideoCapture(videoLocation)
-#length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-#print 'You have', length, 'frames', videoLocation
-#frameID = 0
-#if (videoLocation.rfind('data') > 0) and (videoLocation.rfind('throughFenceRL') > 0):
-#    print 'Skipping first 15 frames'
-#    while(frameID <= 15):
-#        ret, frame = cap.read()
-#        frameID += 1
-#
-#    if frameID > 0:
-#        frameID = 0
-#while(frameID <= 50):
-#    ret, frame = cap.read()
-#    print frameID
-#    frameID +=1
-#
-#plt.close('all')
-#plt.figure(figsize=(7,4))
-#plt.imshow(frame)
-#sheep = np.load(save+'loc50.npy')[0]
 
 def xPrimeFunc(A, x):
     return A*x
@@ -64,7 +27,7 @@ def kalman(z, cov):
 
     A = np.matrix(np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]]))
     H = np.matrix(np.array([[1,0,0,0],[0,1,0,0]]))
-    R = np.matrix(np.array([[(s_x/2.)**2, rho*s_x*s_y/4.],[rho*s_x*s_y/4., (s_y/2.)**2]]))
+    R = np.matrix(np.array([[s_x**2, rho*s_x*s_y],[rho*s_x*s_y, s_y**2]]))
     Q = np.matrix(np.array([[0,0,0,0],[0,0,0,0],[0,0,(s_x/4.)**2,0],[0,0,0,(s_y/4.)**2]]))
 
     initVel = [z[1,0]-z[0,0], z[1,1]-z[0,1]]
