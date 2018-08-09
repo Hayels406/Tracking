@@ -28,24 +28,27 @@ save = '/data/b1033128/Tracking/CaseH2/'
 
 runUntil = int(sys.argv[1])
 plot = 's'
+restart = int(sys.argv[2])
 
-gamma = 1.35
+gamma = 1.5
 tlPercent = 0.995
-tuPercent = 0.2
+tuPercent = 0.1
 lG = 5
 sigmaG = 2
 lM = 3
 
 quadDark = 100.
-bsDark = 0.5
+bsDark = 0.3
 
 cropVector = [100,400,800,1300]
 quadCrop   = [700,1200,900,1400]
 bsCrop = [375,725,475,825]
+fixedCrop = [1500,600,1700,800]
 
 sheepLocations = []
 blackSheepLocations = []
 quadLocation = []
+fixedLocation = []
 sheepCov = []
 blackSheepCov = []
 frameID = 0
@@ -55,6 +58,7 @@ cap = cv2.VideoCapture(videoLocation)
 length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 print 'You have', length, 'frames', videoLocation
 
+
 print 'Skipping first 19 frames while the sheep are hiding under the tree'
 while(frameID <= 19):
     ret, frame = cap.read()
@@ -62,6 +66,20 @@ while(frameID <= 19):
 if frameID > 0:
     frameID = 0
 
+if restart > 0:
+    print 'Restarting at frame', restart
+    sheepLocations, cropVector, sheepCov = np.load(save+'loc'+str(restart)+'.npy')
+    sheepLocations =  map(np.array,  sheepLocations)
+    quadLocation, quadCrop = np.load(save+'quad'+str(restart)+'.npy')
+    quadLocation = list(quadLocation)
+    blackSheepLocations, bsCrop, blackSheepCov = np.load(save+'blackSheep'+str(restart)+'.npy')
+    blackSheepLocations =  map(np.array,  blackSheepLocations)
+    fixedLocation, fixedCrop = np.load(save+'fixed'+str(restart)+'.npy')
+    while(frameID <= restart):
+        ret, frame = cap.read()
+        frameID += 1
+        skip = frameID
+    N = np.shape(sheepLocations)[1]
 
 while(frameID <= runUntil):
     plt.close('all')
@@ -77,7 +95,7 @@ while(frameID <= runUntil):
         fullCropped, cropVector = movingCrop(frameID, full, sheepLocations, cropVector)
         cropX, cropY, cropXMax, cropYMax = cropVector
 
-        blackSheepLocations, bsCov, bsCrop = getBlackSheep(full, blackSheepLocations, blackSheepCov, bsCrop, frameID, save)
+        blackSheepLocations, bsCov, bsCrop = getBlackSheep(full, blackSheepLocations, blackSheepCov, bsCrop, frameID, bsDark)
         blackSheepCov += bsCov
 
         R = fullCropped[:,:,0]/255.
@@ -102,12 +120,13 @@ while(frameID <= runUntil):
         maxfilter = ndimage.maximum_filter(img, size=lM)
 
         if frameID > 1:
-            prediction_Objects = predictEuler(sheepLocations)
+            prediction_Objects, prediction_Distributions = predictKalman(np.array(sheepLocations), np.array(sheepCov))
         else:
             prediction_Objects = []
             prediction_Distributions = []
         filtered, distImg = createBinaryImage(frameID, prediction_Objects, np.array(sheepCov), cropVector, maxfilter, darkTolerance)
 
+        fixedLocation, fixedCrop = getFixedPoint(full, fixedLocation, fixedCrop, frameID, gamma, lG, sigmaG, lM, tlPercent, tuPercent)
 
         if plot != 'N':
             plt.imshow(filtered, cmap = 'gray')
@@ -214,7 +233,7 @@ while(frameID <= runUntil):
 
                         objectLocations += new_objects_bgm.tolist()
                         frameCov += sCov_bgm
-                        #assignmentVec += np.array(Ids)[linear_sum_assignment(cdist(prev,new_objects_bgm))[0].tolist()].tolist()
+
                 elif frameID > 1:
                     miniPred = np.copy(np.array(distImg).sum(axis = 0))[y:y+h,x:x+w]
                     lastT = np.array(sheepLocations[-1])
@@ -230,18 +249,22 @@ while(frameID <= runUntil):
                             coords = extractDensityCoordinates(miniGrey)
                         converged = False
                         retryValue = 0
-                        while (converged == False) and (retryValue < 5):
+                        while (converged == False) and (retryValue < 10):
                             mm = bgm(n_components = k, covariance_type='tied', tol=1e-6, n_init=1).fit(coords)
                             converged = mm.converged_
                             if converged == False:
                                 print 'retry'
                                 retryValue += 1
-                        new_objects_bgm = (mm.means_ + [x,y])
-                        cov = mm.covariances_.flatten()[[0,1,-1]]
-                        s_x = np.sqrt(cov[0])
-                        s_y = np.sqrt(cov[2])
-                        rho = cov[1]/(s_x*s_y)
-                        sCov_bgm = [[s_x, s_y, rho]]*len(mm.means_)
+                        if converged == False:
+                            new_objects_bgm = np.array(prev)
+                            sCov_bgm = np.array(sheepCov[-1])[Ids].tolist()
+                        else:
+                            new_objects_bgm = (mm.means_ + [x,y])
+                            cov = mm.covariances_.flatten()[[0,1,-1]]
+                            s_x = np.sqrt(cov[0])
+                            s_y = np.sqrt(cov[2])
+                            rho = cov[1]/(s_x*s_y)
+                            sCov_bgm = [[s_x, s_y, rho]]*len(mm.means_)
 
                         objectLocations += new_objects_bgm.tolist()
                         frameCov += sCov_bgm
@@ -269,6 +292,7 @@ while(frameID <= runUntil):
             plt.scatter(np.array(finalLocations)[:, 0], np.array(finalLocations)[:, 1], s = 1.)
             plt.scatter(np.array(blackSheepLocations)[-1,0], np.array(blackSheepLocations)[-1,1], s = 1.)
             plt.scatter(np.array(quadLocation)[-1,0], np.array(quadLocation)[-1,1], s = 1.)
+            plt.scatter(np.array(fixedLocation)[-1,0], np.array(fixedLocation)[-1,1], s = 1.)
             plt.gca().set_aspect('equal')
             plt.gca().set_axis_off()
             if plot == 's':
@@ -291,12 +315,19 @@ while(frameID <= runUntil):
             break
 
         if (np.mod(frameID, 50) == 0) and (frameID > 0):
-            np.save(save+'loc'+str(frameID), (sheepLocations, cropVector))
-            np.save(save+'quad'+str(frameID), np.array(quadLocation))
-            np.save(save+'cov'+str(frameID), np.array(sheepCov))
+            np.save(save+'loc'+str(frameID), (sheepLocations, cropVector, sheepCov))
+            np.save(save+'quad'+str(frameID), (np.array(quadLocation), quadCrop))
+            np.save(save+'blackSheep'+str(frameID), (np.array(blackSheepLocations), bsCrop, blackSheepCov))
+            np.save(save+'fixed'+str(frameID), (fixedLocation, fixedCrop))
 
         plt.clf()
         frameID = frameID + 1
 
 np.save(save+'Final-loc'+str(frameID-1), sheepLocations)
 np.save(save+'Final-quad'+str(frameID-1), np.array(quadLocation))
+np.save(save+'Final-blackSheep'+str(frameID-1), np.array(blackSheepLocations))
+np.save(save+'Final-fixed'+str(frameID-1), fixedLocation)
+
+
+os.system('for a in '+save+'located/*.png; do convert -trim "$a" "$a"; done')
+os.system('ffmpeg -framerate 25 -pattern_type glob -i "'+save+'located/traj0*.png" -c:v libx264 -r 30 -pix_fmt yuv420p -vf scale=1200:1180 "'+save+'trackedMovie.mp4"')
