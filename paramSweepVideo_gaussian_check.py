@@ -21,7 +21,7 @@ import copy
 from glob import glob
 from scipy.stats import norm
 
-from trackingFunctions_ngs54_changes import *
+from trackingFunctions import *
 
 if os.getcwd().rfind('hayley') > 0:
     videoLocation = '/users/hayleymoore/Documents/PhD/Tracking/CaseH2.mov'
@@ -48,9 +48,9 @@ lG = int(sys.argv[1])
 sigmaG = float(sys.argv[2])
 
 quadDark = 100.
-bsDark = 0.5
+bsDark = 0.3
 weight = 0.3
-gamma = 1.35
+gamma = 1.3
 
 sheepLocations = []
 blackSheepLocations = []
@@ -63,9 +63,9 @@ quadCrop   = [700,1200,900,1400]
 bsCrop = [375,725,475,825]
 
 #setting up file directories
-sig = str(round(sigmaG,3)*100)
-l1 = sig[:1]
-l2 = sig[2:]
+sig = str(round(sigmaG,2)*10)
+l1 = sig[0]
+l2 = sig[1:]
 
 
 cap = cv2.VideoCapture(videoLocation)
@@ -104,7 +104,7 @@ while(frameID <= runUntil):
         fullCropped, cropVector = movingCrop(frameID, full, sheepLocations, cropVector)
         cropX, cropY, cropXMax, cropYMax = cropVector
 
-        blackSheepLocations, bsCov, bsCrop = getBlackSheep(full, blackSheepLocations, bsCrop, bsDark, frameID)
+        blackSheepLocations, bsCov, bsCrop = getBlackSheep(full, blackSheepLocations, blackSheepCov, bsCrop, frameID, bsDark)
         blackSheepCov += bsCov
 
         R = fullCropped[:,:,0]/255.
