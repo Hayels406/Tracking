@@ -26,7 +26,7 @@ def mahalDist(image):
 
 
 
-sys.argv = ['CH2.py', '19', '0']
+sys.argv = ['CH2.py', '19']
 execfile('CH2.py')
 
 os.system('mkdir '+save+'grey')
